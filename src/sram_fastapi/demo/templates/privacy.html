@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>Privacy Policy</h1>
+    <p><strong>Last updated:</strong> 2026-02-23</p>
+</div>
+
+<div class="card">
+    <h2>Data Collection</h2>
+    <p>This application does not permanently store any personal data. The only data processing occurs during your authenticated session:</p>
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li>Your identity information (name, email) is retrieved from SRAM during login</li>
+        <li>This information is stored temporarily in an encrypted session cookie</li>
+        <li>The session expires after 1 hour or when you logout</li>
+        <li>No data is written to any database or persistent storage</li>
+    </ul>
+</div>
+
+<div class="card">
+    <h2>Cookies</h2>
+    <p>This application uses a single session cookie to maintain your login state. This cookie:</p>
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li>Is encrypted and cannot be read by third parties</li>
+        <li>Contains only your session identifier</li>
+        <li>Is deleted when you logout or close your browser</li>
+    </ul>
+</div>
+
+<div class="card">
+    <h2>Third-Party Services</h2>
+    <p>Authentication is handled by <a href="https://sram.surf.nl">SURF Research Access Management (SRAM)</a>.
+    When you login, you are redirected to SRAM, which is subject to its own
+    <a href="https://wiki.surfnet.nl/display/surfresearchaccessmanagement/Privacy+Policy">privacy policy</a>.</p>
+</div>
+
+<div class="card">
+    <h2>Contact</h2>
+    <p>For questions about this privacy policy, contact the application administrators at TU Delft.</p>
+</div>
+
+<div class="card">
+    <p><a href="/" class="btn btn-secondary">Back to Home</a></p>
+</div>
+{% endblock %}

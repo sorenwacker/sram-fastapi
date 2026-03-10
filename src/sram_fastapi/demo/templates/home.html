@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Home - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>SRAM Authentication Demo</h1>
+    <p>This demo application demonstrates OIDC authentication with SURF Research Access Management (SRAM).</p>
+</div>
+
+{% if user %}
+<div class="card">
+    <h2>Welcome, {{ user.name or user.email or user.sub }}!</h2>
+    <p>You are successfully authenticated via SRAM.</p>
+    <p style="margin-top: 1rem;">
+        <span class="user-badge">{{ user.email or user.sub }}</span>
+    </p>
+    <p style="margin-top: 1.5rem;">
+        <a href="/profile" class="btn btn-primary">View Profile</a>
+        <a href="/auth/logout" class="btn btn-secondary">Logout</a>
+    </p>
+</div>
+{% else %}
+<div class="card">
+    <h2>Not Authenticated</h2>
+    <p>Click the button below to login with your institutional account via SRAM.</p>
+    <p style="margin-top: 1.5rem;">
+        <a href="/auth/login" class="btn btn-primary">Login with SRAM</a>
+    </p>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>How it works</h2>
+    <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li style="margin-bottom: 0.5rem;">Click "Login with SRAM" to initiate the OIDC flow</li>
+        <li style="margin-bottom: 0.5rem;">You'll be redirected to SRAM to select your institution</li>
+        <li style="margin-bottom: 0.5rem;">Authenticate with your institutional credentials</li>
+        <li style="margin-bottom: 0.5rem;">SRAM redirects you back with your identity claims</li>
+    </ol>
+</div>
+
+<div class="card">
+    <h2>API Access</h2>
+    <p>For programmatic access, use a Bearer token with the <code>/api/protected</code> endpoint:</p>
+    <pre><code>curl -H "Authorization: Bearer YOUR_TOKEN" {{ base_url }}/api/protected</code></pre>
+</div>
+{% endblock %}

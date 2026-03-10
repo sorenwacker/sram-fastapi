@@ -1,0 +1,17 @@
+[Unit]
+Description=SRAM FastAPI Demo Application
+After=network.target
+
+[Service]
+Type=simple
+User=app
+Group=app
+WorkingDirectory=/app/sram-fastapi
+Environment="PATH=/app/.local/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/app/sram-fastapi/.env
+ExecStart=/app/.local/bin/uv run gunicorn sram_fastapi.demo.app:get_demo_app --factory -w 4 -k uvicorn.workers.UvicornWorker -b 127.0.0.1:8124
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
