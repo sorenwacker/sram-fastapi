@@ -187,7 +187,7 @@ async def authz_error_handler(request: Request, exc: AuthorizationError):
         },
     )
 
-# Public route (no authorization)
+# Authenticated route (no additional authorization)
 @app.get("/")
 async def home(user: Annotated[User, Depends(get_current_user)]):
     return {"user": user.name}

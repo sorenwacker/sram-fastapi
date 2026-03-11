@@ -109,13 +109,17 @@ curl -H "Authorization: Bearer <access_token>" https://your-app/api/data
 Returns the `OIDCClient` instance. Use in auth routes.
 
 ```python
+from fastapi import Request
 from sram_fastapi.auth import OIDCClient, get_oidc_client
+from sram_fastapi.config import get_settings
 
 @app.get("/auth/login")
 async def login(
     request: Request,
     oidc_client: OIDCClient = Depends(get_oidc_client),
 ):
+    settings = get_settings()
+    redirect_uri = f"{settings.base_url}/auth/callback"
     return await oidc_client.authorize_redirect(request, redirect_uri)
 ```
 

@@ -150,6 +150,13 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Required for large session cookies with OIDC claims
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
     }
 }
 ```
+
+The proxy buffer settings are required because SRAM OIDC responses include user claims (entitlements, affiliations) that can result in large session cookies.
