@@ -340,10 +340,43 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#contact-sram-support" class="md-nav__link">
+  <a href="#submit-a-service-registration-request" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Contact SRAM Support
+        Submit a Service Registration Request
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authentication-protocol-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication Protocol Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provisioning-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provisioning Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#after-approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After Approval
       
     </span>
   </a>
@@ -628,10 +661,43 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#contact-sram-support" class="md-nav__link">
+  <a href="#submit-a-service-registration-request" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Contact SRAM Support
+        Submit a Service Registration Request
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authentication-protocol-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication Protocol Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provisioning-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provisioning Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#after-approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After Approval
       
     </span>
   </a>
@@ -832,9 +898,14 @@
 <li>Admin access to a SRAM collaboration (or ability to create one)</li>
 </ul>
 <h2 id="step-1-register-your-service-with-sram">Step 1: Register Your Service with SRAM</h2>
-<p>Services must be registered in SRAM before they can be connected to collaborations.</p>
-<h3 id="contact-sram-support">Contact SRAM Support</h3>
-<p>Email <strong>sram-support@surf.nl</strong> with the following information:</p>
+<p>Services must be registered in SRAM before they can be connected to collaborations. SRAM provides a self-service registration form.</p>
+<h3 id="submit-a-service-registration-request">Submit a Service Registration Request</h3>
+<ol>
+<li>Go to the <a href="https://sram.surf.nl/new-service-request">SRAM Service Registration Form</a></li>
+<li>For testing, use the acceptance environment: <a href="https://acc.sram.surf.nl/new-service-request">acc.sram.surf.nl/new-service-request</a></li>
+<li>Log in with your institutional account</li>
+<li>Fill in the required information:</li>
+</ol>
 <table>
 <thead>
 <tr>
@@ -861,7 +932,7 @@
 </tr>
 <tr>
 <td>Protocol</td>
-<td>Authentication protocol</td>
+<td>Authentication protocol (see below)</td>
 <td>OIDC</td>
 </tr>
 <tr>
@@ -886,7 +957,29 @@
 </tr>
 </tbody>
 </table>
-<p>SURF will register the service and provide you with:</p>
+<ol>
+<li>Submit the request</li>
+</ol>
+<p>SURF will review your request and contact you if clarification is needed. For questions, contact sram-support@surf.nl.</p>
+<h3 id="authentication-protocol-options">Authentication Protocol Options</h3>
+<p><strong>Web-based applications:</strong></p>
+<ul>
+<li><strong>OpenID Connect (OIDC)</strong>: Recommended for web applications. Provides user attributes and group memberships via browser-based flow.</li>
+<li><strong>SAML 2.0</strong>: Alternative browser-based protocol with equivalent functionality.</li>
+</ul>
+<p><strong>Command-line applications:</strong></p>
+<ul>
+<li><strong>SSH public keys</strong>: For terminal access. Provides username only; requires pre-provisioning of keys.</li>
+<li><strong>PAM web login</strong>: Brings federated authentication to terminal-based login.</li>
+</ul>
+<h3 id="provisioning-options">Provisioning Options</h3>
+<p>If you need user data before first login:</p>
+<ul>
+<li><strong>LDAP</strong>: Traditional protocol for pre-authentication user provisioning.</li>
+<li><strong>SCIM</strong>: Modern API for bidirectional user data synchronization.</li>
+</ul>
+<h3 id="after-approval">After Approval</h3>
+<p>Once approved, you will receive:</p>
 <ul>
 <li><strong>Client ID</strong>: OIDC client identifier</li>
 <li><strong>Client Secret</strong>: OIDC client secret (keep this secure)</li>
@@ -976,9 +1069,11 @@
 </ul>
 <h2 id="references">References</h2>
 <ul>
+<li><a href="https://sram.surf.nl/new-service-request">SRAM Service Registration Form</a></li>
+<li><a href="https://servicedesk.surf.nl/wiki/spaces/IAM/pages/74226152/Connect+an+application+to+SRAM">Connect an application to SRAM</a></li>
+<li><a href="https://servicedesk.surf.nl/wiki/spaces/IAM/pages/74226142/Attributes+in+SRAM">SRAM Attributes Documentation</a></li>
 <li><a href="https://servicedesk.surf.nl/wiki/spaces/IAM/pages/74226073/SURF+Research+Access+Management">SRAM Documentation</a></li>
-<li><a href="https://wiki.surfnet.nl/display/SRAM/Connect+a+service+to+your+CO">Connect a service to SRAM</a></li>
-<li><a href="https://servicedesk.surf.nl/wiki/pages/viewpage.action?pageId=74226770">SRAM for service providers</a></li>
+<li><a href="https://www.surf.nl/en/services/identity-access-management/surf-research-access-management">SURF Research Access Management</a></li>
 <li>SRAM Support: sram-support@surf.nl</li>
 </ul>
 
