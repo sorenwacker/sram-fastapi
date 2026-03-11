@@ -1,10 +1,11 @@
 """Demo application with HTML templates for SRAM authentication."""
 
 import json
+import logging
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -18,6 +19,8 @@ from sram_fastapi.auth import (
     get_token_user,
 )
 from sram_fastapi.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -91,9 +94,20 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
     async def callback(
         request: Request,
         oidc_client: Annotated[OIDCClient, Depends(get_oidc_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
     ) -> RedirectResponse:
         """Handle OIDC callback."""
-        token, user = await oidc_client.handle_callback(request)
+        try:
+            token, user = await oidc_client.handle_callback(request)
+        except Exception as e:
+            error_detail = f"OIDC callback failed: {type(e).__name__}: {e}"
+            logger.exception("OIDC callback error")
+            if settings.debug:
+                raise HTTPException(status_code=500, detail=error_detail)
+            raise HTTPException(
+                status_code=500,
+                detail="Authentication failed. Check server logs for details.",
+            ) from e
         request.session["user"] = user.raw_claims
         request.session["access_token"] = token.get("access_token")
         return RedirectResponse(url="/")
