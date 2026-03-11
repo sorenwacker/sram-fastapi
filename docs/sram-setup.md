@@ -9,24 +9,52 @@ This guide covers registering your application as a service in SRAM and connecti
 
 ## Step 1: Register Your Service with SRAM
 
-Services must be registered in SRAM before they can be connected to collaborations.
+Services must be registered in SRAM before they can be connected to collaborations. SRAM provides a self-service registration form.
 
-### Contact SRAM Support
+### Submit a Service Registration Request
 
-Email **sram-support@surf.nl** with the following information:
+1. Go to the [SRAM Service Registration Form](https://sram.surf.nl/new-service-request)
+   - For testing, use the acceptance environment: [acc.sram.surf.nl/new-service-request](https://acc.sram.surf.nl/new-service-request)
+2. Log in with your institutional account
+3. Fill in the required information:
 
 | Field | Description | Example |
 |-------|-------------|---------|
 | Service name | Display name for your application | TU Delft SRAM Demo |
 | Service description | Brief description of what the service does | Demo application for SRAM authentication |
 | Organization | Your institution | Delft University of Technology |
-| Protocol | Authentication protocol | OIDC |
+| Protocol | Authentication protocol (see below) | OIDC |
 | Redirect URI | OAuth callback URL | `https://your-app.example.com/auth/callback` |
 | Privacy Policy URL | Link to your privacy policy | `https://your-app.example.com/privacy` |
 | AUP URL | Acceptable Use Policy URL | `https://your-app.example.com/aup` |
 | Contact email | Technical contact | your-email@tudelft.nl |
 
-SURF will register the service and provide you with:
+4. Submit the request
+
+SURF will review your request and contact you if clarification is needed. For questions, contact sram-support@surf.nl.
+
+### Authentication Protocol Options
+
+**Web-based applications:**
+
+- **OpenID Connect (OIDC)**: Recommended for web applications. Provides user attributes and group memberships via browser-based flow.
+- **SAML 2.0**: Alternative browser-based protocol with equivalent functionality.
+
+**Command-line applications:**
+
+- **SSH public keys**: For terminal access. Provides username only; requires pre-provisioning of keys.
+- **PAM web login**: Brings federated authentication to terminal-based login.
+
+### Provisioning Options
+
+If you need user data before first login:
+
+- **LDAP**: Traditional protocol for pre-authentication user provisioning.
+- **SCIM**: Modern API for bidirectional user data synchronization.
+
+### After Approval
+
+Once approved, you will receive:
 
 - **Client ID**: OIDC client identifier
 - **Client Secret**: OIDC client secret (keep this secure)
@@ -137,7 +165,9 @@ Some collaborations inherit services from a parent collaboration. You may need t
 
 ## References
 
+- [SRAM Service Registration Form](https://sram.surf.nl/new-service-request)
+- [Connect an application to SRAM](https://servicedesk.surf.nl/wiki/spaces/IAM/pages/74226152/Connect+an+application+to+SRAM)
+- [SRAM Attributes Documentation](https://servicedesk.surf.nl/wiki/spaces/IAM/pages/74226142/Attributes+in+SRAM)
 - [SRAM Documentation](https://servicedesk.surf.nl/wiki/spaces/IAM/pages/74226073/SURF+Research+Access+Management)
-- [Connect a service to SRAM](https://wiki.surfnet.nl/display/SRAM/Connect+a+service+to+your+CO)
-- [SRAM for service providers](https://servicedesk.surf.nl/wiki/pages/viewpage.action?pageId=74226770)
+- [SURF Research Access Management](https://www.surf.nl/en/services/identity-access-management/surf-research-access-management)
 - SRAM Support: sram-support@surf.nl
