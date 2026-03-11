@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # Session settings
     session_cookie_name: str = "session"
     session_max_age: int = 3600  # 1 hour
+    session_https_only: bool = True  # Use secure cookies (required for HTTPS)
 
     # Server settings
     base_url: str = "http://localhost:8124"

@@ -41,6 +41,8 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
         secret_key=settings.secret_key,
         session_cookie=settings.session_cookie_name,
         max_age=settings.session_max_age,
+        https_only=settings.session_https_only,
+        same_site="lax",
     )
 
     app.dependency_overrides[get_settings] = lambda: settings
