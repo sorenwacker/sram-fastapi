@@ -73,8 +73,7 @@ def register_routes(app: FastAPI) -> None:
     ) -> RedirectResponse:
         """Initiate OIDC login flow."""
         redirect_uri = f"{settings.base_url}/auth/callback"
-        authorization_url = await oidc_client.get_authorization_url(request, redirect_uri)
-        return RedirectResponse(url=authorization_url)
+        return await oidc_client.authorize_redirect(request, redirect_uri)
 
     @app.get("/auth/callback")
     async def callback(

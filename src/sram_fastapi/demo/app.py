@@ -89,8 +89,7 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
     ) -> RedirectResponse:
         """Initiate OIDC login."""
         redirect_uri = f"{settings.base_url}/auth/callback"
-        authorization_url = await oidc_client.get_authorization_url(request, redirect_uri)
-        return RedirectResponse(url=authorization_url)
+        return await oidc_client.authorize_redirect(request, redirect_uri)
 
     @app.get("/auth/callback")
     async def callback(

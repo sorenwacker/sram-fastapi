@@ -8,6 +8,7 @@ from authlib.integrations.starlette_client import OAuth
 from authlib.oauth2.rfc6749 import OAuth2Token
 from fastapi import Depends, HTTPException, Request, status
 from starlette.config import Config
+from starlette.responses import RedirectResponse
 
 from sram_fastapi.config import Settings, get_settings
 
@@ -74,14 +75,13 @@ class OIDCClient:
             )
         return self._oauth
 
-    async def get_authorization_url(self, request: Request, redirect_uri: str) -> str:
-        """Generate authorization URL for SRAM login."""
+    async def authorize_redirect(self, request: Request, redirect_uri: str) -> RedirectResponse:
+        """Redirect to SRAM authorization endpoint.
+
+        This method properly saves OAuth state to the session for CSRF protection.
+        """
         oauth = self.get_oauth()
-        redirect = await oauth.sram.create_authorization_url(redirect_uri)
-        # Store state and nonce in session
-        request.session["oauth_state"] = redirect.get("state")
-        request.session["oauth_nonce"] = redirect.get("nonce")
-        return redirect["url"]
+        return await oauth.sram.authorize_redirect(request, redirect_uri)
 
     async def handle_callback(self, request: Request) -> tuple[OAuth2Token, User]:
         """Handle OIDC callback and return token and user info."""
