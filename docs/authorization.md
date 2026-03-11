@@ -128,7 +128,6 @@ For HTML applications, register an exception handler to render a user-friendly e
 
 ```python
 from fastapi import Request
-from fastapi.responses import HTMLResponse
 from sram_fastapi.auth import AuthorizationError
 
 @app.exception_handler(AuthorizationError)
@@ -159,7 +158,6 @@ async def authorization_error_handler(request: Request, exc: AuthorizationError)
 ```python
 from typing import Annotated
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from sram_fastapi.auth import (

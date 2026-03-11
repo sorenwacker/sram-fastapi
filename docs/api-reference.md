@@ -77,7 +77,8 @@ async def profile(user: User = Depends(get_current_user)):
 Returns `User` if authenticated, `None` otherwise.
 
 ```python
-from sram_fastapi.auth import get_optional_user
+from fastapi import Depends
+from sram_fastapi.auth import User, get_optional_user
 
 @app.get("/")
 async def home(user: User | None = Depends(get_optional_user)):
@@ -91,7 +92,8 @@ async def home(user: User | None = Depends(get_optional_user)):
 Authenticates via Bearer token (for API/CLI access). Uses token introspection.
 
 ```python
-from sram_fastapi.auth import get_token_user
+from fastapi import Depends
+from sram_fastapi.auth import User, get_token_user
 
 @app.get("/api/data")
 async def api_data(user: User = Depends(get_token_user)):
@@ -162,7 +164,8 @@ async def auth_error_handler(request: Request, exc: AuthorizationError):
 Factory that creates a dependency requiring specific SRAM group memberships.
 
 ```python
-from sram_fastapi.auth import require_entitlement
+from fastapi import Depends
+from sram_fastapi.auth import User, require_entitlement
 
 # Require membership in a specific group
 @app.get("/admin")
@@ -200,7 +203,8 @@ async def superadmin_page(
 Factory that creates a dependency requiring specific institutional affiliations.
 
 ```python
-from sram_fastapi.auth import require_affiliation
+from fastapi import Depends
+from sram_fastapi.auth import User, require_affiliation
 
 # Require exact affiliation
 @app.get("/tudelft-staff")
@@ -313,7 +317,7 @@ from sram_fastapi.auth import (
     get_oidc_client,
     get_optional_user,
 )
-from sram_fastapi.config import Settings, get_settings
+from sram_fastapi.config import get_settings
 
 app = FastAPI()
 settings = get_settings()
