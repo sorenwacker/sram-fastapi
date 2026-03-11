@@ -1,6 +1,6 @@
 site_name: SRAM FastAPI
 site_description: FastAPI application with SRAM OIDC authentication
-repo_url: https://github.com/tudelft/sram-fastapi
+repo_url: https://github.com/sorenwacker/sram-fastapi
 
 theme:
   name: material
@@ -10,8 +10,9 @@ theme:
 
 nav:
   - Home: index.md
-  - SRAM Setup: sram-setup.md
+  - API Reference: api-reference.md
   - Authorization: authorization.md
+  - SRAM Setup: sram-setup.md
   - Deployment: deployment.md
 
 markdown_extensions:
