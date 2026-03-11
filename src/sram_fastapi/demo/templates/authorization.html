@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Authorization Demo - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>Authorization Demo</h1>
+    <p>This page demonstrates how to use SRAM attributes for authorization decisions.</p>
+</div>
+
+<div class="card">
+    <h2>Authentication vs Authorization</h2>
+    <table>
+        <tr>
+            <th>Concept</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><strong>Authentication</strong></td>
+            <td>Verifies who you are. SRAM handles this via OIDC.</td>
+        </tr>
+        <tr>
+            <td><strong>Authorization</strong></td>
+            <td>Determines what you can access based on your attributes.</td>
+        </tr>
+    </table>
+</div>
+
+{% if user %}
+<div class="card">
+    <h2>Your Attributes</h2>
+    <p>These are the attributes SRAM provides for authorization decisions:</p>
+
+    <h3 style="margin-top: 1.5rem;">Entitlements</h3>
+    <p style="color: #718096; font-size: 0.875rem;">Used for fine-grained access control to specific features.</p>
+    {% if user.eduperson_entitlement %}
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        {% for entitlement in user.eduperson_entitlement %}
+        <li style="margin-bottom: 0.25rem;"><code>{{ entitlement }}</code></li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #a0aec0; font-style: italic;">No entitlements assigned</p>
+    {% endif %}
+
+    <h3 style="margin-top: 1.5rem;">Affiliations</h3>
+    <p style="color: #718096; font-size: 0.875rem;">Used for role-based access at the organizational level.</p>
+    {% if user.voperson_external_affiliation %}
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        {% for affiliation in user.voperson_external_affiliation %}
+        <li style="margin-bottom: 0.25rem;"><code>{{ affiliation }}</code></li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #a0aec0; font-style: italic;">No affiliations assigned</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Test Protected Routes</h2>
+    <p>Try accessing these protected resources to see authorization in action:</p>
+
+    <div style="margin-top: 1.5rem;">
+        <h3>Entitlement-Protected Route</h3>
+        <p style="color: #718096; font-size: 0.875rem; margin-bottom: 0.5rem;">
+            Requires: <code>{{ required_entitlement }}</code>
+        </p>
+        <a href="/demo/entitlement-protected" class="btn btn-primary">Access Entitlement Page</a>
+    </div>
+
+    <div style="margin-top: 1.5rem;">
+        <h3>Affiliation-Protected Route</h3>
+        <p style="color: #718096; font-size: 0.875rem; margin-bottom: 0.5rem;">
+            Requires: <code>{{ required_affiliation }}</code> (any organization)
+        </p>
+        <a href="/demo/affiliation-protected" class="btn btn-primary">Access Affiliation Page</a>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="alert alert-info">
+        <strong>Login required.</strong> Please authenticate to view your attributes and test authorization.
+    </div>
+    <p style="margin-top: 1rem;">
+        <a href="/auth/login" class="btn btn-primary">Login with SRAM</a>
+    </p>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Implementation</h2>
+    <p>Use the authorization dependencies in your routes:</p>
+    <pre><code>from sram_fastapi.auth import require_entitlement, require_affiliation
+
+@app.get("/admin")
+async def admin_page(
+    user = Depends(require_entitlement("urn:example:admin"))
+):
+    return {"message": "Welcome, admin!"}
+
+@app.get("/staff")
+async def staff_page(
+    user = Depends(require_affiliation("staff@"))
+):
+    return {"message": "Welcome, staff!"}</code></pre>
+</div>
+
+<div class="card">
+    <p>
+        <a href="/" class="btn btn-secondary">Back to Home</a>
+    </p>
+</div>
+{% endblock %}

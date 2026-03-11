@@ -1,24 +1,20 @@
 """Demo application with HTML templates for SRAM authentication."""
 
-import json
 import logging
 from pathlib import Path
-from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from sram_fastapi.auth import (
-    OIDCClient,
-    User,
-    get_current_user,
-    get_oidc_client,
-    get_optional_user,
-    get_token_user,
-)
+from sram_fastapi.auth import AuthorizationError, get_optional_user
 from sram_fastapi.config import Settings, get_settings
+from sram_fastapi.demo.routers import (
+    create_auth_router,
+    create_authorization_router,
+    create_pages_router,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,112 +45,28 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
 
     templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-    @app.get("/", response_class=HTMLResponse)
-    async def home(
-        request: Request,
-        user: Annotated[User | None, Depends(get_optional_user)],
-        settings: Annotated[Settings, Depends(get_settings)],
-    ):
-        """Home page."""
+    @app.exception_handler(AuthorizationError)
+    async def authorization_error_handler(
+        request: Request, exc: AuthorizationError
+    ) -> HTMLResponse:
+        """Handle authorization errors with a user-friendly page."""
         return templates.TemplateResponse(
             request=request,
-            name="home.html",
+            name="forbidden.html",
+            status_code=403,
             context={
-                "user": user,
-                "base_url": settings.base_url,
+                "user": get_optional_user(request),
+                "required": exc.required,
+                "actual": exc.actual,
+                "check_type": exc.check_type,
+                "require_all": exc.require_all,
             },
         )
 
-    @app.get("/profile", response_class=HTMLResponse)
-    async def profile(
-        request: Request,
-        user: Annotated[User, Depends(get_current_user)],
-    ):
-        """User profile page (requires authentication)."""
-        raw_claims_json = json.dumps(user.raw_claims, indent=2, default=str)
-        return templates.TemplateResponse(
-            request=request,
-            name="profile.html",
-            context={
-                "user": user,
-                "raw_claims_json": raw_claims_json,
-            },
-        )
-
-    @app.get("/auth/login")
-    async def login(
-        request: Request,
-        oidc_client: Annotated[OIDCClient, Depends(get_oidc_client)],
-        settings: Annotated[Settings, Depends(get_settings)],
-    ) -> RedirectResponse:
-        """Initiate OIDC login."""
-        redirect_uri = f"{settings.base_url}/auth/callback"
-        return await oidc_client.authorize_redirect(request, redirect_uri)
-
-    @app.get("/auth/callback")
-    async def callback(
-        request: Request,
-        oidc_client: Annotated[OIDCClient, Depends(get_oidc_client)],
-        settings: Annotated[Settings, Depends(get_settings)],
-    ) -> RedirectResponse:
-        """Handle OIDC callback."""
-        try:
-            token, user = await oidc_client.handle_callback(request)
-        except Exception as e:
-            error_detail = f"OIDC callback failed: {type(e).__name__}: {e}"
-            logger.exception("OIDC callback error")
-            if settings.debug:
-                raise HTTPException(status_code=500, detail=error_detail)
-            raise HTTPException(
-                status_code=500,
-                detail="Authentication failed. Check server logs for details.",
-            ) from e
-        request.session["user"] = user.raw_claims
-        request.session["access_token"] = token.get("access_token")
-        return RedirectResponse(url="/")
-
-    @app.get("/auth/logout")
-    async def logout(request: Request) -> RedirectResponse:
-        """Logout and clear session."""
-        request.session.clear()
-        return RedirectResponse(url="/")
-
-    @app.get("/api/protected")
-    async def protected_api(
-        user: Annotated[User, Depends(get_token_user)],
-    ) -> dict:
-        """Protected API endpoint (requires Bearer token)."""
-        return {
-            "message": "You have access to the protected API",
-            "user": {
-                "sub": user.sub,
-                "email": user.email,
-                "name": user.name,
-            },
-        }
-
-    @app.get("/health")
-    async def health() -> dict:
-        """Health check."""
-        return {"status": "healthy"}
-
-    @app.get("/privacy", response_class=HTMLResponse)
-    async def privacy(request: Request):
-        """Privacy policy page."""
-        return templates.TemplateResponse(
-            request=request,
-            name="privacy.html",
-            context={"user": None},
-        )
-
-    @app.get("/aup", response_class=HTMLResponse)
-    async def aup(request: Request):
-        """Acceptable use policy page."""
-        return templates.TemplateResponse(
-            request=request,
-            name="aup.html",
-            context={"user": None},
-        )
+    # Include routers
+    app.include_router(create_pages_router())
+    app.include_router(create_auth_router())
+    app.include_router(create_authorization_router())
 
     return app
 

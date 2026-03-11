@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Entitlement Protected - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card" style="border-left: 4px solid #48bb78;">
+    <h1>Access Granted</h1>
+    <p>You have successfully accessed an entitlement-protected resource.</p>
+</div>
+
+<div class="card">
+    <h2>About Entitlements</h2>
+    <p>
+        Entitlements are URIs that represent specific permissions or capabilities granted through SRAM.
+        They are typically assigned based on collaboration membership and roles.
+    </p>
+    <p style="margin-top: 1rem;">
+        Your access was granted because you have the required entitlement:
+    </p>
+    <p style="margin-top: 0.5rem;">
+        <code style="background: #c6f6d5; color: #276749; padding: 0.25rem 0.5rem;">{{ required_entitlement }}</code>
+    </p>
+</div>
+
+<div class="card">
+    <h2>Your Entitlements</h2>
+    {% if user.eduperson_entitlement %}
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        {% for entitlement in user.eduperson_entitlement %}
+        <li style="margin-bottom: 0.25rem;">
+            <code{% if entitlement == required_entitlement %} style="background: #c6f6d5; color: #276749;"{% endif %}>{{ entitlement }}</code>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #a0aec0; font-style: italic;">No entitlements found</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Common Use Cases</h2>
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li style="margin-bottom: 0.5rem;">Access to specific research collaboration resources</li>
+        <li style="margin-bottom: 0.5rem;">Administrative capabilities within a project</li>
+        <li style="margin-bottom: 0.5rem;">Feature flags for premium or beta functionality</li>
+        <li style="margin-bottom: 0.5rem;">Data access permissions for sensitive datasets</li>
+    </ul>
+</div>
+
+<div class="card">
+    <p>
+        <a href="/demo/authorization" class="btn btn-secondary">Back to Authorization Demo</a>
+        <a href="/" class="btn btn-secondary">Home</a>
+    </p>
+</div>
+{% endblock %}

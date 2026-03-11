@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Access Denied - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card" style="border-left: 4px solid #c53030;">
+    <h1 style="color: #c53030;">Access Denied</h1>
+    <p>You do not have the required {{ check_type }}s to access this resource.</p>
+</div>
+
+<div class="card">
+    <h2>What's Required</h2>
+    <p style="margin-bottom: 0.5rem;">
+        This resource requires {% if require_all %}<strong>all</strong>{% else %}<strong>at least one</strong>{% endif %} of the following {{ check_type }}s:
+    </p>
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        {% for req in required %}
+        <li style="margin-bottom: 0.25rem;">
+            <code style="background: #fed7d7; color: #c53030;">{{ req }}</code>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="card">
+    <h2>What You Have</h2>
+    {% if actual %}
+    <p style="margin-bottom: 0.5rem;">Your current {{ check_type }}s:</p>
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        {% for item in actual %}
+        <li style="margin-bottom: 0.25rem;">
+            <code>{{ item }}</code>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #a0aec0; font-style: italic;">You have no {{ check_type }}s assigned.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>How to Get Access</h2>
+    {% if check_type == 'entitlement' %}
+    <p>
+        Entitlements are granted through SRAM collaboration membership. To gain access:
+    </p>
+    <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li style="margin-bottom: 0.5rem;">Contact the collaboration administrator</li>
+        <li style="margin-bottom: 0.5rem;">Request to join the collaboration that grants the required entitlement</li>
+        <li style="margin-bottom: 0.5rem;">Wait for approval and re-login to refresh your attributes</li>
+    </ol>
+    {% else %}
+    <p>
+        Affiliations are provided by your home institution. To gain access:
+    </p>
+    <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li style="margin-bottom: 0.5rem;">Contact your institution's identity management team</li>
+        <li style="margin-bottom: 0.5rem;">Verify that your institutional profile has the correct role assigned</li>
+        <li style="margin-bottom: 0.5rem;">Re-login after your profile has been updated</li>
+    </ol>
+    {% endif %}
+</div>
+
+<div class="card">
+    <p>
+        <a href="/demo/authorization" class="btn btn-secondary">Back to Authorization Demo</a>
+        <a href="/" class="btn btn-secondary">Home</a>
+        <a href="/auth/logout" class="btn btn-danger">Logout</a>
+    </p>
+</div>
+{% endblock %}

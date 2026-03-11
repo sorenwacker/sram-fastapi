@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Affiliation Protected - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card" style="border-left: 4px solid #48bb78;">
+    <h1>Access Granted</h1>
+    <p>You have successfully accessed an affiliation-protected resource.</p>
+</div>
+
+<div class="card">
+    <h2>About Affiliations</h2>
+    <p>
+        Affiliations indicate your role at an organization, formatted as <code>role@organization</code>.
+        They are released by your institution through the eduGAIN federation.
+    </p>
+    <p style="margin-top: 1rem;">
+        Your access was granted because you have an affiliation matching:
+    </p>
+    <p style="margin-top: 0.5rem;">
+        <code style="background: #c6f6d5; color: #276749; padding: 0.25rem 0.5rem;">{{ required_affiliation }}</code>
+        <span style="color: #718096; font-size: 0.875rem;">(wildcard: any organization)</span>
+    </p>
+</div>
+
+<div class="card">
+    <h2>Your Affiliations</h2>
+    {% if user.voperson_external_affiliation %}
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        {% for affiliation in user.voperson_external_affiliation %}
+        <li style="margin-bottom: 0.25rem;">
+            <code{% if affiliation.startswith(required_affiliation.rstrip('@')) %} style="background: #c6f6d5; color: #276749;"{% endif %}>{{ affiliation }}</code>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #a0aec0; font-style: italic;">No affiliations found</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Affiliation Types</h2>
+    <table>
+        <tr>
+            <th>Role</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><code>staff@</code></td>
+            <td>Employed staff members</td>
+        </tr>
+        <tr>
+            <td><code>member@</code></td>
+            <td>Formal members of the organization</td>
+        </tr>
+        <tr>
+            <td><code>student@</code></td>
+            <td>Students enrolled at the institution</td>
+        </tr>
+        <tr>
+            <td><code>affiliate@</code></td>
+            <td>External collaborators</td>
+        </tr>
+    </table>
+</div>
+
+<div class="card">
+    <p>
+        <a href="/demo/authorization" class="btn btn-secondary">Back to Authorization Demo</a>
+        <a href="/" class="btn btn-secondary">Home</a>
+    </p>
+</div>
+{% endblock %}

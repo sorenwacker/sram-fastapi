@@ -1,5 +1,6 @@
 """SRAM OIDC authentication module."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -11,6 +12,27 @@ from starlette.config import Config
 from starlette.responses import RedirectResponse
 
 from sram_fastapi.config import Settings, get_settings
+
+
+class AuthorizationError(Exception):
+    """Raised when a user lacks required authorization."""
+
+    def __init__(
+        self,
+        required: list[str],
+        actual: list[str],
+        check_type: str,
+        require_all: bool = False,
+    ):
+        self.required = required
+        self.actual = actual
+        self.check_type = check_type
+        self.require_all = require_all
+        mode = "all" if require_all else "any"
+        super().__init__(
+            f"Access denied: missing required {check_type}s "
+            f"(required {mode} of {required}, has {actual})"
+        )
 
 
 @dataclass
@@ -70,7 +92,10 @@ class OIDCClient:
                 name="sram",
                 server_metadata_url=self.settings.sram_oidc_discovery_url,
                 client_kwargs={
-                    "scope": "openid email profile",
+                    "scope": (
+                        "openid email profile "
+                        "eduperson_entitlement voperson_external_affiliation"
+                    ),
                 },
             )
         return self._oauth
@@ -88,10 +113,9 @@ class OIDCClient:
         oauth = self.get_oauth()
         token = await oauth.sram.authorize_access_token(request)
 
-        userinfo = token.get("userinfo")
-        if userinfo is None:
-            # Fetch userinfo if not included in token response
-            userinfo = await oauth.sram.userinfo(token=token)
+        # Always fetch from userinfo endpoint to get full claims
+        # including eduperson_entitlement and voperson_external_affiliation
+        userinfo = await oauth.sram.userinfo(token=token)
 
         user = User.from_claims(dict(userinfo))
         return token, user
@@ -188,3 +212,118 @@ async def get_token_user(
         )
 
     return User.from_claims(token_info)
+
+
+def _match_affiliation(pattern: str, affiliation: str) -> bool:
+    """Check if an affiliation matches a pattern.
+
+    Supports wildcards:
+    - "role@" matches any organization with that role
+    - "@org" matches any role at that organization
+    - "role@org" requires exact match
+    """
+    if pattern.endswith("@"):
+        # Wildcard: role@ matches any org
+        role_prefix = pattern[:-1]
+        return affiliation.startswith(role_prefix + "@")
+    elif pattern.startswith("@"):
+        # Wildcard: @org matches any role
+        org_suffix = pattern[1:]
+        return affiliation.endswith("@" + org_suffix)
+    else:
+        # Exact match
+        return pattern == affiliation
+
+
+def _create_authorization_check(
+    required: tuple[str, ...],
+    check_type: str,
+    require_all: bool,
+    get_user_values: Callable[[User], list[str]],
+    match_func: Callable[[str, str], bool],
+) -> Callable:
+    """Base factory for creating authorization dependency checks.
+
+    Args:
+        required: Values to check against
+        check_type: Type of check ("entitlement" or "affiliation")
+        require_all: If True, all values must match; if False, any match suffices
+        get_user_values: Function to extract values from User
+        match_func: Function to match a required value against a user value
+
+    Returns:
+        A dependency function that validates authorization and returns the User.
+    """
+
+    def check_authorization(user: User = Depends(get_current_user)) -> User:
+        user_values = get_user_values(user)
+
+        def matches(req: str) -> bool:
+            return any(match_func(req, val) for val in user_values)
+
+        if require_all:
+            has_required = all(matches(r) for r in required)
+        else:
+            has_required = any(matches(r) for r in required)
+
+        if not has_required:
+            raise AuthorizationError(
+                required=list(required),
+                actual=user_values,
+                check_type=check_type,
+                require_all=require_all,
+            )
+
+        return user
+
+    return check_authorization
+
+
+def require_entitlement(*required: str, require_all: bool = False) -> Callable:
+    """Create a dependency that requires specific entitlements.
+
+    Args:
+        *required: One or more entitlement URIs to check
+        require_all: If True, user must have ALL entitlements. If False (default),
+                     user needs at least ONE of the entitlements.
+
+    Returns:
+        A dependency function that validates entitlements and returns the User.
+
+    Raises:
+        AuthorizationError: If the user lacks required entitlements.
+    """
+    return _create_authorization_check(
+        required=required,
+        check_type="entitlement",
+        require_all=require_all,
+        get_user_values=lambda u: u.eduperson_entitlement or [],
+        match_func=lambda req, val: req == val,
+    )
+
+
+def require_affiliation(*required: str, require_all: bool = False) -> Callable:
+    """Create a dependency that requires specific affiliations.
+
+    Supports wildcard matching:
+    - "role@" matches any organization with that role (e.g., "staff@" matches "staff@tudelft.nl")
+    - "@org" matches any role at that organization (e.g., "@tudelft.nl" matches "staff@tudelft.nl")
+
+    Args:
+        *required: One or more affiliation patterns to check
+        require_all: If True, user must match ALL patterns. If False (default),
+                     user needs to match at least ONE pattern.
+
+    Returns:
+        A dependency function that validates affiliations and returns the User.
+
+    Raises:
+        AuthorizationError: If the user lacks required affiliations.
+    """
+    return _create_authorization_check(
+        required=required,
+        check_type="affiliation",
+        require_all=require_all,
+        get_user_values=lambda u: u.voperson_external_affiliation or [],
+        match_func=_match_affiliation,
+    )

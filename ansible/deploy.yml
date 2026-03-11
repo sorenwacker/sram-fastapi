@@ -1,0 +1,66 @@
+---
+- name: Deploy SRAM FastAPI Demo
+  hosts: sram_demo
+
+  tasks:
+    - name: Sync application files
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../"
+        dest: "{{ app_dir }}/"
+        delete: true
+        rsync_path: "sudo rsync"
+        rsync_opts:
+          - "--exclude=.venv"
+          - "--exclude=__pycache__"
+          - "--exclude=*.pyc"
+          - "--exclude=.git"
+          - "--exclude=ansible"
+          - "--exclude=.env"
+
+    - name: Fix ownership of application files
+      become: true
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        owner: app
+        group: app
+        recurse: true
+
+    - name: Template .env file
+      become: true
+      ansible.builtin.template:
+        src: env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: app
+        group: app
+        mode: "0600"
+
+    - name: Install dependencies with uv
+      become: true
+      become_user: app
+      ansible.builtin.command:
+        cmd: /app/.local/bin/uv sync --no-dev
+        chdir: "{{ app_dir }}"
+      changed_when: true
+
+    - name: Template systemd service
+      become: true
+      ansible.builtin.template:
+        src: sram-demo.service.j2
+        dest: /etc/systemd/system/sram-demo.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart sram-demo
+
+  handlers:
+    - name: Reload systemd
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart sram-demo
+      become: true
+      ansible.builtin.systemd:
+        name: sram-demo
+        state: restarted
+        enabled: true

@@ -41,6 +41,18 @@
 </div>
 
 <div class="card">
+    <h2>Authorization Demo</h2>
+    <p>Learn how to implement fine-grained access control using SRAM attributes:</p>
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li style="margin-bottom: 0.5rem;"><strong>Entitlements</strong> - Restrict access based on SRAM group membership</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Affiliations</strong> - Restrict access based on institutional roles</li>
+    </ul>
+    <p style="margin-top: 1rem;">
+        <a href="/demo/authorization" class="btn btn-secondary">Try Authorization Demo</a>
+    </p>
+</div>
+
+<div class="card">
     <h2>API Access</h2>
     <p>For programmatic access, use a Bearer token with the <code>/api/protected</code> endpoint:</p>
     <pre><code>curl -H "Authorization: Bearer YOUR_TOKEN" {{ base_url }}/api/protected</code></pre>

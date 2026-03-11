@@ -1,0 +1,15 @@
+# Application configuration
+app_name: SRAM Demo
+app_dir: /app/sram-fastapi
+base_url: https://sram-demo.ewi.tudelft.nl
+
+# SRAM OIDC
+sram_oidc_discovery_url: https://proxy.sram.surf.nl/.well-known/openid-configuration
+
+# Gunicorn settings
+gunicorn_workers: 4
+gunicorn_port: 8080
+
+# Session settings
+session_cookie_name: session
+session_max_age: 3600

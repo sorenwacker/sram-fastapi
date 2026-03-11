@@ -11,6 +11,7 @@ authors = [
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
+    "gunicorn>=23.0.0",
     "httpx>=0.28.0",
     "authlib>=1.4.0",
     "itsdangerous>=2.2.0",
@@ -47,3 +48,8 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+
+[dependency-groups]
+dev = [
+    "mkdocs-material>=9.7.4",
+]

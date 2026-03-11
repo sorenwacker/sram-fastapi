@@ -45,6 +45,9 @@ htmlcov/
 
 # UV (keep uv.lock for reproducibility)
 
+# Ansible
+*.retry
+
 # OS
 .DS_Store
 Thumbs.db
