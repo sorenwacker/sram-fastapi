@@ -30,7 +30,7 @@ A list of affiliation strings in the format `role@organization`. Examples:
 
 ```
 staff@tudelft.nl
-member@example.org
+employee@example.org
 student@university.edu
 ```
 
@@ -85,7 +85,7 @@ async def staff_page(
 # Require specific organization affiliation
 @app.get("/tudelft-only")
 async def tudelft_page(
-    user = Depends(require_affiliation("staff@tudelft.nl", "member@tudelft.nl"))
+    user = Depends(require_affiliation("staff@tudelft.nl", "employee@tudelft.nl"))
 ):
     return {"message": "Welcome, TU Delft affiliate!"}
 

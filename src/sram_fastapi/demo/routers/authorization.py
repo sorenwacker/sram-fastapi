@@ -13,7 +13,7 @@ TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 # Demo authorization requirements
 DEMO_REQUIRED_ENTITLEMENT = "urn:mace:surf.nl:sram:group:tudelft:sramdemo:sramdemogroup"
-DEMO_REQUIRED_AFFILIATION = "member@"
+DEMO_REQUIRED_AFFILIATION = "employee@"
 
 
 def create_authorization_router() -> APIRouter:

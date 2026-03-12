@@ -26,7 +26,7 @@ def user_with_entitlements() -> User:
             ],
             "voperson_external_affiliation": [
                 "staff@tudelft.nl",
-                "member@example.org",
+                "employee@example.org",
             ],
         }
     )
@@ -196,7 +196,7 @@ class TestRequireAffiliation:
         """Access granted when user has all required affiliations (AND)."""
         check = require_affiliation(
             "staff@",
-            "member@",
+            "employee@",
             require_all=True,
         )
         result = check(user_with_entitlements)
