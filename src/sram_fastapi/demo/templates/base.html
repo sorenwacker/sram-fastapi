@@ -144,15 +144,13 @@
             font-size: 0.875rem;
         }
     </style>
+    {% block styles %}{% endblock %}
 </head>
 <body>
     <nav>
-        <span class="logo">SRAM Demo</span>
+        <a href="/" class="logo">SRAM Demo</a>
         <div>
-            <a href="/">Home</a>
-            <a href="/demo/authorization">Authorization</a>
             {% if user %}
-            <a href="/profile">Profile</a>
             <a href="/auth/logout">Logout</a>
             {% else %}
             <a href="/auth/login">Login</a>

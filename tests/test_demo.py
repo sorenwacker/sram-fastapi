@@ -42,9 +42,14 @@ class TestDemoPages:
         assert "SRAM Authentication Demo" in response.text
         assert "Login with SRAM" in response.text
 
-    def test_profile_requires_auth(self, demo_client: TestClient):
-        """Profile page requires authentication."""
-        response = demo_client.get("/profile")
+    def test_entitlement_protected_requires_auth(self, demo_client: TestClient):
+        """Entitlement-protected endpoint requires authentication."""
+        response = demo_client.get("/demo/entitlement-protected")
+        assert response.status_code == 401
+
+    def test_affiliation_protected_requires_auth(self, demo_client: TestClient):
+        """Affiliation-protected endpoint requires authentication."""
+        response = demo_client.get("/demo/affiliation-protected")
         assert response.status_code == 401
 
     def test_health_check(self, demo_client: TestClient):

@@ -1,60 +1,363 @@
 {% extends "base.html" %}
 
-{% block title %}Home - SRAM Demo{% endblock %}
+{% block title %}SRAM Authentication Demo{% endblock %}
 
 {% block content %}
 <div class="card">
     <h1>SRAM Authentication Demo</h1>
-    <p>This demo application demonstrates OIDC authentication with SURF Research Access Management (SRAM).</p>
+    <p>
+        This application demonstrates how to integrate with
+        <a href="https://wiki.surfnet.nl/display/SRAM" target="_blank">SURF Research Access Management (SRAM)</a>
+        for secure login and access control.
+    </p>
 </div>
 
 {% if user %}
+{# ========== AUTHENTICATED VIEW ========== #}
+
+{# Identity Section #}
 <div class="card">
-    <h2>Welcome, {{ user.name or user.email or user.sub }}!</h2>
-    <p>You are successfully authenticated via SRAM.</p>
-    <p style="margin-top: 1rem;">
-        <span class="user-badge">{{ user.email or user.sub }}</span>
-    </p>
+    <h2>Your Identity</h2>
+    <p class="section-intro">You are logged in via your institution.</p>
+    <table>
+        <tr>
+            <th>Name</th>
+            <td>{{ user.name or '-' }}</td>
+        </tr>
+        <tr>
+            <th>Email</th>
+            <td>{{ user.email or '-' }}</td>
+        </tr>
+        <tr>
+            <th>Username</th>
+            <td><code>{{ user.preferred_username or user.sub }}</code></td>
+        </tr>
+    </table>
     <p style="margin-top: 1.5rem;">
-        <a href="/profile" class="btn btn-primary">View Profile</a>
         <a href="/auth/logout" class="btn btn-secondary">Logout</a>
     </p>
 </div>
-{% else %}
+
+{# Access Rights Section #}
 <div class="card">
-    <h2>Not Authenticated</h2>
-    <p>Click the button below to login with your institutional account via SRAM.</p>
+    <h2>Your Access Rights</h2>
+    <p class="section-intro">
+        SRAM provides two types of attributes that applications can use to control access:
+    </p>
+
+    <div class="access-section">
+        <h3>Entitlements</h3>
+        <p class="explanation">
+            <strong>What they are:</strong> Permissions assigned through SRAM collaborations.
+            When you join a collaboration (research group), you receive entitlements that grant access to specific resources.
+        </p>
+        <p class="explanation">
+            <strong>Example use:</strong> Access to a shared dataset, admin rights for a project, or permission to use a computing cluster.
+        </p>
+        {% if user.eduperson_entitlement %}
+        <ul class="attribute-list">
+            {% for entitlement in user.eduperson_entitlement %}
+            <li><code>{{ entitlement }}</code></li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="no-data">You have no entitlements assigned.</p>
+        {% endif %}
+    </div>
+
+    <div class="access-section">
+        <h3>Affiliations</h3>
+        <p class="explanation">
+            <strong>What they are:</strong> Your role at your institution, provided automatically by your organization.
+            Format is <code>role@institution</code>.
+        </p>
+        <p class="explanation">
+            <strong>Example use:</strong> Restrict a service to employees only, or give students access to educational resources.
+        </p>
+        {% if user.voperson_external_affiliation %}
+        <ul class="attribute-list">
+            {% for affiliation in user.voperson_external_affiliation %}
+            <li><code>{{ affiliation }}</code></li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="no-data">No affiliations found.</p>
+        {% endif %}
+    </div>
+</div>
+
+{# Test Protected Routes Section #}
+<div class="card">
+    <h2>Test Protected Routes</h2>
+    <p class="section-intro">
+        These buttons test API endpoints that require specific permissions.
+        Results appear below each button.
+    </p>
+
+    <div class="test-route">
+        <h3>Entitlement Check</h3>
+        <p class="requirement">
+            Requires: <code>{{ required_entitlement }}</code>
+        </p>
+        <button class="btn btn-primary" onclick="testRoute('/demo/entitlement-protected', 'entitlement-result')">
+            Test Entitlement Access
+        </button>
+        <div id="entitlement-result" class="test-result"></div>
+    </div>
+
+    <div class="test-route">
+        <h3>Affiliation Check</h3>
+        <p class="requirement">
+            Requires: <code>{{ required_affiliation }}</code> (any institution)
+        </p>
+        <button class="btn btn-primary" onclick="testRoute('/demo/affiliation-protected', 'affiliation-result')">
+            Test Affiliation Access
+        </button>
+        <div id="affiliation-result" class="test-result"></div>
+    </div>
+</div>
+
+{# API Access Section #}
+<div class="card">
+    <h2>API Access</h2>
+    <p class="section-intro">
+        For programmatic access (scripts, applications), use a Bearer token in your HTTP requests.
+    </p>
+    <p class="explanation">
+        <strong>How it works:</strong> Include your access token in the Authorization header.
+        The server validates the token with SRAM and extracts your identity and permissions.
+    </p>
+    <pre><code>curl -H "Authorization: Bearer YOUR_TOKEN" \
+     {{ base_url }}/api/protected</code></pre>
+    <p class="explanation" style="margin-top: 1rem;">
+        Replace <code>YOUR_TOKEN</code> with a valid SRAM access token obtained through the OIDC flow.
+    </p>
+</div>
+
+{# Raw Claims (collapsible for technical users) #}
+<div class="card">
+    <details>
+        <summary><h2 style="display: inline; cursor: pointer;">Technical Details</h2></summary>
+        <p class="section-intro" style="margin-top: 1rem;">
+            Complete token payload from SRAM (for developers):
+        </p>
+        <pre><code>{{ raw_claims_json }}</code></pre>
+    </details>
+</div>
+
+<script>
+async function testRoute(url, resultId) {
+    const resultDiv = document.getElementById(resultId);
+    resultDiv.innerHTML = '<span class="loading">Testing...</span>';
+    resultDiv.className = 'test-result';
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (response.ok) {
+            resultDiv.innerHTML = '<span class="success">Access granted</span> - ' + data.message;
+            resultDiv.className = 'test-result success-box';
+        } else {
+            resultDiv.innerHTML = '<span class="error">Access denied</span> - ' + (data.detail || 'Forbidden');
+            resultDiv.className = 'test-result error-box';
+        }
+    } catch (e) {
+        resultDiv.innerHTML = '<span class="error">Error</span> - ' + e.message;
+        resultDiv.className = 'test-result error-box';
+    }
+}
+</script>
+
+{% else %}
+{# ========== UNAUTHENTICATED VIEW ========== #}
+
+<div class="card">
+    <h2>Get Started</h2>
+    <p>Click below to log in with your institutional account via SRAM.</p>
     <p style="margin-top: 1.5rem;">
         <a href="/auth/login" class="btn btn-primary">Login with SRAM</a>
     </p>
 </div>
-{% endif %}
 
 <div class="card">
-    <h2>How it works</h2>
-    <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-        <li style="margin-bottom: 0.5rem;">Click "Login with SRAM" to initiate the OIDC flow</li>
-        <li style="margin-bottom: 0.5rem;">You'll be redirected to SRAM to select your institution</li>
-        <li style="margin-bottom: 0.5rem;">Authenticate with your institutional credentials</li>
-        <li style="margin-bottom: 0.5rem;">SRAM redirects you back with your identity claims</li>
+    <h2>How It Works</h2>
+    <ol class="steps-list">
+        <li>
+            <strong>Click "Login with SRAM"</strong>
+            <p>You'll be redirected to the SRAM login page.</p>
+        </li>
+        <li>
+            <strong>Select your institution</strong>
+            <p>Choose your university or research organization from the list.</p>
+        </li>
+        <li>
+            <strong>Authenticate</strong>
+            <p>Log in with your institutional credentials (the same you use for your institution's services).</p>
+        </li>
+        <li>
+            <strong>Return to this app</strong>
+            <p>SRAM sends your identity and permissions back securely.</p>
+        </li>
     </ol>
 </div>
 
 <div class="card">
-    <h2>Authorization Demo</h2>
-    <p>Learn how to implement fine-grained access control using SRAM attributes:</p>
-    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
-        <li style="margin-bottom: 0.5rem;"><strong>Entitlements</strong> - Restrict access based on SRAM group membership</li>
-        <li style="margin-bottom: 0.5rem;"><strong>Affiliations</strong> - Restrict access based on institutional roles</li>
-    </ul>
-    <p style="margin-top: 1rem;">
-        <a href="/demo/authorization" class="btn btn-secondary">Try Authorization Demo</a>
+    <h2>What is SRAM?</h2>
+    <p>
+        <strong>SURF Research Access Management (SRAM)</strong> is a service that enables secure
+        access to research applications using your existing institutional account.
     </p>
+    <p style="margin-top: 1rem;">
+        <strong>Benefits:</strong>
+    </p>
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        <li>No separate passwords to remember</li>
+        <li>Your institution manages your identity</li>
+        <li>Collaborations can easily share access to resources</li>
+        <li>Administrators can manage who has access to what</li>
+    </ul>
 </div>
 
-<div class="card">
-    <h2>API Access</h2>
-    <p>For programmatic access, use a Bearer token with the <code>/api/protected</code> endpoint:</p>
-    <pre><code>curl -H "Authorization: Bearer YOUR_TOKEN" {{ base_url }}/api/protected</code></pre>
-</div>
+{% endif %}
+{% endblock %}
+
+{% block styles %}
+<style>
+    .section-intro {
+        color: #4a5568;
+        margin-bottom: 1rem;
+    }
+    .explanation {
+        color: #718096;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    .access-section {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e2e8f0;
+    }
+    .access-section:first-of-type {
+        border-top: none;
+        padding-top: 0;
+    }
+    .access-section h3 {
+        color: #2d3748;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+    .attribute-list {
+        list-style: none;
+        margin: 0.75rem 0 0 0;
+        padding: 0;
+    }
+    .attribute-list li {
+        background: #f7fafc;
+        padding: 0.5rem 0.75rem;
+        margin-bottom: 0.25rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+    .no-data {
+        color: #a0aec0;
+        font-style: italic;
+        margin-top: 0.5rem;
+    }
+    .test-route {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e2e8f0;
+    }
+    .test-route:first-of-type {
+        border-top: none;
+        padding-top: 0;
+    }
+    .test-route h3 {
+        color: #2d3748;
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+    }
+    .requirement {
+        color: #718096;
+        font-size: 0.85rem;
+        margin-bottom: 0.75rem;
+    }
+    .test-result {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+    .test-result:empty {
+        display: none;
+    }
+    .success-box {
+        background: #f0fff4;
+        border: 1px solid #9ae6b4;
+        color: #276749;
+    }
+    .error-box {
+        background: #fff5f5;
+        border: 1px solid #feb2b2;
+        color: #c53030;
+    }
+    .loading {
+        color: #718096;
+    }
+    .success {
+        font-weight: 600;
+    }
+    .error {
+        font-weight: 600;
+    }
+    .steps-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        counter-reset: steps;
+    }
+    .steps-list li {
+        counter-increment: steps;
+        margin-bottom: 1.25rem;
+        padding-left: 2.5rem;
+        position: relative;
+    }
+    .steps-list li::before {
+        content: counter(steps);
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1.75rem;
+        height: 1.75rem;
+        background: #2b6cb0;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .steps-list li p {
+        color: #718096;
+        font-size: 0.9rem;
+        margin-top: 0.25rem;
+    }
+    details summary {
+        cursor: pointer;
+        user-select: none;
+    }
+    details summary::-webkit-details-marker {
+        display: none;
+    }
+    details summary::before {
+        content: '+ ';
+        font-weight: bold;
+        color: #2b6cb0;
+    }
+    details[open] summary::before {
+        content: '- ';
+    }
+</style>
 {% endblock %}

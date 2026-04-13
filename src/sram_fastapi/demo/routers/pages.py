@@ -1,4 +1,9 @@
-"""Page routes for the demo application."""
+"""Page routes for the demo application.
+
+This module provides the HTML page endpoints for the SRAM demo application.
+All content is consolidated into a single home page with clear sections
+for identity, access rights, and API usage.
+"""
 
 import json
 from pathlib import Path
@@ -8,14 +13,20 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from sram_fastapi.auth import User, get_current_user, get_optional_user, get_token_user
+from sram_fastapi.auth import User, get_optional_user, get_token_user
 from sram_fastapi.config import Settings, get_settings
+
+from .authorization import DEMO_REQUIRED_AFFILIATION, DEMO_REQUIRED_ENTITLEMENT
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 
 def create_pages_router() -> APIRouter:
-    """Create pages router."""
+    """Create the pages router for HTML endpoints.
+
+    Returns:
+        APIRouter with routes for the home page, legal pages, and API endpoints.
+    """
     router = APIRouter(tags=["pages"])
     templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
@@ -25,29 +36,25 @@ def create_pages_router() -> APIRouter:
         user: Annotated[User | None, Depends(get_optional_user)],
         settings: Annotated[Settings, Depends(get_settings)],
     ):
-        """Home page."""
+        """Render the home page.
+
+        Shows different content based on authentication state:
+        - Unauthenticated: Login prompt and explanation of SRAM
+        - Authenticated: User identity, access rights, and testing tools
+        """
+        raw_claims_json = ""
+        if user:
+            raw_claims_json = json.dumps(user.raw_claims, indent=2, default=str)
+
         return templates.TemplateResponse(
             request=request,
             name="home.html",
             context={
                 "user": user,
                 "base_url": settings.base_url,
-            },
-        )
-
-    @router.get("/profile", response_class=HTMLResponse)
-    async def profile(
-        request: Request,
-        user: Annotated[User, Depends(get_current_user)],
-    ):
-        """User profile page (requires authentication)."""
-        raw_claims_json = json.dumps(user.raw_claims, indent=2, default=str)
-        return templates.TemplateResponse(
-            request=request,
-            name="profile.html",
-            context={
-                "user": user,
                 "raw_claims_json": raw_claims_json,
+                "required_entitlement": DEMO_REQUIRED_ENTITLEMENT,
+                "required_affiliation": DEMO_REQUIRED_AFFILIATION,
             },
         )
 

@@ -1,70 +1,65 @@
-"""Authorization demo routes."""
+"""Authorization demo routes.
 
-from pathlib import Path
+This module provides API endpoints that demonstrate authorization based on
+SRAM attributes (entitlements and affiliations). These endpoints return JSON
+and are designed to be called via fetch() from the home page for inline
+testing of access control.
+"""
+
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import APIRouter, Depends
 
-from sram_fastapi.auth import User, get_optional_user, require_affiliation, require_entitlement
-
-TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+from sram_fastapi.auth import User, require_affiliation, require_entitlement
 
 # Demo authorization requirements
+# These values should be configured per-deployment in a real application
 DEMO_REQUIRED_ENTITLEMENT = "urn:mace:surf.nl:sram:group:tudelft:sramdemo:sramdemogroup"
 DEMO_REQUIRED_AFFILIATION = "employee@"
 
 
 def create_authorization_router() -> APIRouter:
-    """Create authorization demo router."""
+    """Create the authorization demo router.
+
+    Returns:
+        APIRouter with JSON endpoints protected by entitlement and affiliation checks.
+    """
     router = APIRouter(prefix="/demo", tags=["authorization"])
-    templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-    @router.get("/authorization", response_class=HTMLResponse)
-    async def authorization_demo(
-        request: Request,
-        user: Annotated[User | None, Depends(get_optional_user)],
-    ):
-        """Authorization demo landing page."""
-        return templates.TemplateResponse(
-            request=request,
-            name="authorization.html",
-            context={
-                "user": user,
-                "required_entitlement": DEMO_REQUIRED_ENTITLEMENT,
-                "required_affiliation": DEMO_REQUIRED_AFFILIATION,
-            },
-        )
-
-    @router.get("/entitlement-protected", response_class=HTMLResponse)
+    @router.get("/entitlement-protected")
     async def entitlement_protected(
-        request: Request,
         user: Annotated[User, Depends(require_entitlement(DEMO_REQUIRED_ENTITLEMENT))],
-    ):
-        """Page protected by entitlement requirement."""
-        return templates.TemplateResponse(
-            request=request,
-            name="entitlement_protected.html",
-            context={
-                "user": user,
-                "required_entitlement": DEMO_REQUIRED_ENTITLEMENT,
-            },
-        )
+    ) -> dict:
+        """Endpoint protected by entitlement requirement.
 
-    @router.get("/affiliation-protected", response_class=HTMLResponse)
+        Access is granted only if the user has the required entitlement
+        in their eduperson_entitlement claim.
+
+        Returns:
+            JSON with access confirmation and user info.
+        """
+        return {
+            "message": "Entitlement check passed",
+            "user": user.preferred_username or user.email or user.sub,
+            "required": DEMO_REQUIRED_ENTITLEMENT,
+        }
+
+    @router.get("/affiliation-protected")
     async def affiliation_protected(
-        request: Request,
         user: Annotated[User, Depends(require_affiliation(DEMO_REQUIRED_AFFILIATION))],
-    ):
-        """Page protected by affiliation requirement."""
-        return templates.TemplateResponse(
-            request=request,
-            name="affiliation_protected.html",
-            context={
-                "user": user,
-                "required_affiliation": DEMO_REQUIRED_AFFILIATION,
-            },
-        )
+    ) -> dict:
+        """Endpoint protected by affiliation requirement.
+
+        Access is granted if the user has an affiliation matching the
+        required prefix (e.g., 'employee@' matches 'employee@tudelft.nl').
+
+        Returns:
+            JSON with access confirmation and user info.
+        """
+        return {
+            "message": "Affiliation check passed",
+            "user": user.preferred_username or user.email or user.sub,
+            "required": DEMO_REQUIRED_AFFILIATION,
+        }
 
     return router
