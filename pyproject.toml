@@ -13,11 +13,14 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     "gunicorn>=23.0.0",
     "httpx>=0.28.0",
-    "authlib>=1.4.0",
+    "authlib>=1.6.9",
     "itsdangerous>=2.2.0",
     "python-multipart>=0.0.18",
     "pydantic-settings>=2.6.0",
     "jinja2>=3.1.0",
+    "cryptography>=46.0.7",
+    "requests>=2.33.0",
+    "pygments>=2.20.0",
 ]
 
 [project.optional-dependencies]
@@ -52,4 +55,7 @@ select = ["E", "F", "I", "N", "W", "UP"]
 [dependency-groups]
 dev = [
     "mkdocs-material>=9.7.4",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
 ]
