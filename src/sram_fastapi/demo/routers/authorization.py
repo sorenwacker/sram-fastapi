@@ -9,6 +9,7 @@ testing of access control.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from sram_fastapi.auth import User, require_affiliation, require_entitlement
 
@@ -16,6 +17,14 @@ from sram_fastapi.auth import User, require_affiliation, require_entitlement
 # These values should be configured per-deployment in a real application
 DEMO_REQUIRED_ENTITLEMENT = "urn:mace:surf.nl:sram:group:tudelft:sramdemo:sramdemogroup"
 DEMO_REQUIRED_AFFILIATION = "employee@"
+
+
+class AuthorizationCheckResponse(BaseModel):
+    """Response model for authorization check endpoints."""
+
+    message: str
+    user: str
+    required: str
 
 
 def create_authorization_router() -> APIRouter:
@@ -26,10 +35,10 @@ def create_authorization_router() -> APIRouter:
     """
     router = APIRouter(prefix="/demo", tags=["authorization"])
 
-    @router.get("/entitlement-protected")
+    @router.get("/entitlement-protected", response_model=AuthorizationCheckResponse)
     async def entitlement_protected(
         user: Annotated[User, Depends(require_entitlement(DEMO_REQUIRED_ENTITLEMENT))],
-    ) -> dict:
+    ) -> AuthorizationCheckResponse:
         """Endpoint protected by entitlement requirement.
 
         Access is granted only if the user has the required entitlement
@@ -38,16 +47,16 @@ def create_authorization_router() -> APIRouter:
         Returns:
             JSON with access confirmation and user info.
         """
-        return {
-            "message": "Entitlement check passed",
-            "user": user.preferred_username or user.email or user.sub,
-            "required": DEMO_REQUIRED_ENTITLEMENT,
-        }
+        return AuthorizationCheckResponse(
+            message="Entitlement check passed",
+            user=user.preferred_username or user.email or user.sub,
+            required=DEMO_REQUIRED_ENTITLEMENT,
+        )
 
-    @router.get("/affiliation-protected")
+    @router.get("/affiliation-protected", response_model=AuthorizationCheckResponse)
     async def affiliation_protected(
         user: Annotated[User, Depends(require_affiliation(DEMO_REQUIRED_AFFILIATION))],
-    ) -> dict:
+    ) -> AuthorizationCheckResponse:
         """Endpoint protected by affiliation requirement.
 
         Access is granted if the user has an affiliation matching the
@@ -56,10 +65,10 @@ def create_authorization_router() -> APIRouter:
         Returns:
             JSON with access confirmation and user info.
         """
-        return {
-            "message": "Affiliation check passed",
-            "user": user.preferred_username or user.email or user.sub,
-            "required": DEMO_REQUIRED_AFFILIATION,
-        }
+        return AuthorizationCheckResponse(
+            message="Affiliation check passed",
+            user=user.preferred_username or user.email or user.sub,
+            required=DEMO_REQUIRED_AFFILIATION,
+        )
 
     return router

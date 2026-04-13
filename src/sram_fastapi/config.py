@@ -39,8 +39,6 @@ class Settings(BaseSettings):
 class ConfigurationError(Exception):
     """Raised when required configuration is missing."""
 
-    pass
-
 
 def _format_missing_settings(error: ValidationError) -> str:
     """Format validation errors into a readable message."""
