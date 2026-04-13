@@ -17,6 +17,17 @@ SURF Research Access Management (SRAM) is a federated identity service that enab
 
 ## Quick Start
 
+```bash
+# Run locally
+make dev
+
+# Run tests
+make test
+
+# Deploy to production
+make deploy
+```
+
 1. [Register your service with SRAM](sram-setup.md)
 2. [Configure and deploy](deployment.md)
 3. [Use the Python API](api-reference.md)

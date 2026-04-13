@@ -1,6 +1,18 @@
 # Deployment
 
-This guide covers deploying the SRAM FastAPI application using Ansible.
+This guide covers deploying the SRAM FastAPI application.
+
+## Quick Start
+
+Use the Makefile for common operations:
+
+```bash
+make deploy        # Deploy to production
+make deploy-check  # Dry-run (no changes)
+make status        # Check service status
+make logs          # View server logs
+make restart       # Restart service
+```
 
 ## Prerequisites
 
@@ -68,8 +80,7 @@ Edit `ansible/group_vars/sram_demo/vars.yml` for non-secret configuration:
 Test the deployment without making changes:
 
 ```bash
-cd ansible
-ansible-playbook deploy.yml --check
+make deploy-check
 ```
 
 ### Deploy
@@ -77,7 +88,7 @@ ansible-playbook deploy.yml --check
 Run the deployment:
 
 ```bash
-ansible-playbook deploy.yml
+make deploy
 ```
 
 ### Verify
@@ -85,13 +96,13 @@ ansible-playbook deploy.yml
 Check the service status:
 
 ```bash
-ansible sram_demo -a "systemctl status sram-demo" --become
+make status
 ```
 
 Check logs:
 
 ```bash
-ansible sram_demo -a "journalctl -u sram-demo -n 50 --no-pager" --become
+make logs
 ```
 
 ## Ansible Directory Structure
