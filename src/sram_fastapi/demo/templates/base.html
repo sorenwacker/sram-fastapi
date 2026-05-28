@@ -169,6 +169,11 @@
         <div>
             SRAM FastAPI Demo - SURF Research Access Management | <a href="/privacy" style="color: #718096;">Privacy</a> | <a href="/aup" style="color: #718096;">Acceptable Use</a>
         </div>
+        {% if version %}
+        <div style="margin-top: 0.5rem; font-size: 0.75rem; color: #a0aec0;">
+            Version {{ version }}
+        </div>
+        {% endif %}
     </footer>
 </body>
 </html>

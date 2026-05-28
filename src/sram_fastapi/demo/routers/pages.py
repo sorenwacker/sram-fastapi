@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from sram_fastapi import __version__
 from sram_fastapi.auth import OIDCClient, User, get_oidc_client, get_optional_user, get_token_user
 from sram_fastapi.config import Settings, get_settings
 
@@ -104,6 +105,7 @@ def create_pages_router() -> APIRouter:
                 "raw_claims_json": raw_claims_json,
                 "required_entitlement": DEMO_REQUIRED_ENTITLEMENT,
                 "required_affiliation": DEMO_REQUIRED_AFFILIATION,
+                "version": __version__,
             },
         )
 
@@ -113,7 +115,7 @@ def create_pages_router() -> APIRouter:
         return templates.TemplateResponse(
             request=request,
             name="privacy.html",
-            context={"user": None},
+            context={"user": None, "version": __version__},
         )
 
     @router.get("/aup", response_class=HTMLResponse)
@@ -122,7 +124,7 @@ def create_pages_router() -> APIRouter:
         return templates.TemplateResponse(
             request=request,
             name="aup.html",
-            context={"user": None},
+            context={"user": None, "version": __version__},
         )
 
     @router.get("/api/protected", response_model=ProtectedAPIResponse)
@@ -206,6 +208,7 @@ def create_pages_router() -> APIRouter:
                 "introspection_configured": bool(settings.sram_introspection_token),
                 "introspection_url": settings.sram_introspection_url,
                 "base_url": settings.base_url,
+                "version": __version__,
             },
         )
 
