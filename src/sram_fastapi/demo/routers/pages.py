@@ -17,7 +17,14 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from sram_fastapi import __version__
-from sram_fastapi.auth import OIDCClient, User, get_oidc_client, get_optional_user, get_token_user
+from sram_fastapi.auth import (
+    IntrospectionTokenError,
+    OIDCClient,
+    User,
+    get_oidc_client,
+    get_optional_user,
+    get_token_user,
+)
 from sram_fastapi.config import Settings, get_settings
 
 from .authorization import DEMO_REQUIRED_AFFILIATION, DEMO_REQUIRED_ENTITLEMENT
@@ -171,6 +178,11 @@ def create_pages_router() -> APIRouter:
         start_time = time.perf_counter()
         try:
             result = await oidc_client.introspect_sram_token(token)
+        except IntrospectionTokenError:
+            raise HTTPException(
+                status_code=503,
+                detail="Service configuration error. Please contact the administrator.",
+            )
         except httpx.HTTPError as e:
             raise HTTPException(status_code=502, detail=f"Token introspection failed: {e}")
 
@@ -240,6 +252,14 @@ def create_pages_router() -> APIRouter:
             result = await oidc_client.introspect_sram_token(token)
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             return TokenValidationResponse(**result, validation_time_ms=round(elapsed_ms, 1))
+        except IntrospectionTokenError:
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            return TokenValidationResponse(
+                active=False,
+                status="introspection-token-invalid",
+                detail="Service introspection token is invalid. Admin must renew it.",
+                validation_time_ms=round(elapsed_ms, 1),
+            )
         except httpx.HTTPError as e:
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             return TokenValidationResponse(

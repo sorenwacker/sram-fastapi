@@ -1,5 +1,6 @@
 """SRAM OIDC authentication module."""
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated
@@ -12,6 +13,19 @@ from starlette.config import Config
 from starlette.responses import RedirectResponse
 
 from sram_fastapi.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
+
+
+class IntrospectionTokenError(Exception):
+    """Raised when the service introspection token is invalid or expired.
+
+    This indicates a server configuration issue that requires admin attention.
+    """
+
+    def __init__(self, message: str = "Service introspection token is invalid or expired"):
+        self.message = message
+        super().__init__(self.message)
 
 
 class AuthorizationError(Exception):
@@ -167,7 +181,8 @@ class OIDCClient:
 
         Raises:
             ValueError: If introspection token is not configured.
-            httpx.HTTPError: If the request fails.
+            IntrospectionTokenError: If the service introspection token is invalid.
+            httpx.HTTPError: If the request fails for other reasons.
         """
         if not self.settings.sram_introspection_token:
             raise ValueError("SRAM introspection token not configured")
@@ -181,6 +196,18 @@ class OIDCClient:
                     "Content-Type": "application/x-www-form-urlencoded",
                 },
             )
+
+            if response.status_code in (401, 403):
+                logger.error(
+                    "SRAM introspection token is invalid or expired. "
+                    "Admin action required: renew SRAM_INTROSPECTION_TOKEN. "
+                    "Get a new token from SRAM service settings."
+                )
+                raise IntrospectionTokenError(
+                    "Service introspection token is invalid or expired. "
+                    "Please contact the administrator."
+                )
+
             response.raise_for_status()
             return response.json()
 
