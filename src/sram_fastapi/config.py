@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     sram_oidc_client_secret: str
     sram_oidc_discovery_url: str = "https://proxy.sram.surf.nl/.well-known/openid-configuration"
 
+    # SRAM token introspection (for application tokens)
+    sram_introspection_token: str | None = None
+    sram_introspection_url: str = "https://sram.surf.nl/api/tokens/introspect"
+
     # Session settings
     session_cookie_name: str = "session"
     session_max_age: int = 3600  # 1 hour

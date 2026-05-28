@@ -121,7 +121,7 @@ class OIDCClient:
         return token, user
 
     async def introspect_token(self, token: str) -> dict | None:
-        """Introspect a token using SRAM's introspection endpoint.
+        """Introspect a token using SRAM's OIDC introspection endpoint.
 
         Returns the token info if valid and active, None otherwise.
         """
@@ -153,6 +153,36 @@ class OIDCClient:
                 return None
         except httpx.HTTPError:
             return None
+
+    async def introspect_sram_token(self, token: str) -> dict:
+        """Introspect a SRAM application token.
+
+        Uses the SRAM token introspection endpoint which requires an
+        application introspection token for authentication.
+
+        Returns:
+            dict with introspection result including 'active' and 'status' fields.
+            Possible status values: 'token-valid', 'token-unknown', 'token-expired',
+            'user-suspended', 'token-not-connected'.
+
+        Raises:
+            ValueError: If introspection token is not configured.
+            httpx.HTTPError: If the request fails.
+        """
+        if not self.settings.sram_introspection_token:
+            raise ValueError("SRAM introspection token not configured")
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                self.settings.sram_introspection_url,
+                data={"token": token},
+                headers={
+                    "Authorization": f"Bearer {self.settings.sram_introspection_token}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+            )
+            response.raise_for_status()
+            return response.json()
 
 
 # Global OIDC client instance

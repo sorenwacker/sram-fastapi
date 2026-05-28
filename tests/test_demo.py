@@ -68,3 +68,46 @@ class TestDemoPages:
         response = demo_client.get("/auth/logout", follow_redirects=False)
         assert response.status_code == 307
         assert response.headers.get("location") == "/"
+
+    def test_test_token_page_renders(self, demo_client: TestClient):
+        """Test token page renders for unauthenticated users."""
+        response = demo_client.get("/test-token")
+        assert response.status_code == 200
+        assert "Test SRAM Token" in response.text
+
+    def test_test_token_validate_without_config(self, demo_client: TestClient):
+        """Token validation returns error when introspection not configured."""
+        response = demo_client.post(
+            "/test-token/validate",
+            json={"token": "some-token"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["active"] is False
+        assert data["status"] == "not-configured"
+
+    def test_test_token_validate_empty_token(self, demo_client: TestClient):
+        """Token validation returns error for empty token."""
+        response = demo_client.post(
+            "/test-token/validate",
+            json={"token": ""},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["active"] is False
+        assert data["status"] == "token-missing"
+
+    def test_hello_requires_token(self, demo_client: TestClient):
+        """Hello endpoint requires Bearer token."""
+        response = demo_client.get("/api/hello")
+        assert response.status_code == 401
+        assert "WWW-Authenticate" in response.headers
+
+    def test_hello_rejects_invalid_token(self, demo_client: TestClient):
+        """Hello endpoint rejects request when introspection not configured."""
+        response = demo_client.get(
+            "/api/hello",
+            headers={"Authorization": "Bearer some-token"},
+        )
+        assert response.status_code == 500
+        assert "not configured" in response.json()["detail"]

@@ -16,6 +16,8 @@
           - "--exclude=.git"
           - "--exclude=ansible"
           - "--exclude=.env"
+      notify:
+        - Restart sram-demo
 
     - name: Fix ownership of application files
       become: true
