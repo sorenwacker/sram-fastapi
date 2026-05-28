@@ -183,10 +183,11 @@ def create_pages_router() -> APIRouter:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        user_info = result.get("user", {})
         return HelloResponse(
             message="Hello World!",
-            user=result.get("name") or result.get("sub", "unknown"),
-            email=result.get("email"),
+            user=user_info.get("name") or result.get("sub", "unknown"),
+            email=user_info.get("email"),
             validation_time_ms=round(elapsed_ms, 1),
         )
 
