@@ -170,6 +170,37 @@ class AuthorizationError(Exception):
     require_all: bool        # Whether all values were required
 ```
 
+### IntrospectionTokenError
+
+Exception raised when the service introspection token is invalid or expired. This indicates a server configuration issue requiring admin attention.
+
+```python
+from sram_fastapi.auth import IntrospectionTokenError
+
+class IntrospectionTokenError(Exception):
+    message: str  # Error description
+```
+
+When this error occurs, the application logs:
+```
+SRAM introspection token is invalid or expired. Admin action required: renew SRAM_INTROSPECTION_TOKEN.
+```
+
+Handle with a custom exception handler:
+
+```python
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from sram_fastapi.auth import IntrospectionTokenError
+
+@app.exception_handler(IntrospectionTokenError)
+async def introspection_error_handler(request: Request, exc: IntrospectionTokenError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Service temporarily unavailable. Please contact admin."},
+    )
+```
+
 Handle with a custom exception handler:
 
 ```python

@@ -2,7 +2,7 @@
 
 import pytest
 
-from sram_fastapi.auth import User
+from sram_fastapi.auth import IntrospectionTokenError, User
 from sram_fastapi.config import ConfigurationError, Settings, get_settings
 
 
@@ -96,3 +96,23 @@ class TestSettings:
         assert "SRAM_OIDC_CLIENT_ID" in error_message
         assert "SRAM_OIDC_CLIENT_SECRET" in error_message
         assert ".env" in error_message
+
+
+class TestIntrospectionTokenError:
+    """Tests for IntrospectionTokenError exception."""
+
+    def test_default_message(self):
+        """Error has default message."""
+        error = IntrospectionTokenError()
+        assert "invalid or expired" in str(error)
+
+    def test_custom_message(self):
+        """Error accepts custom message."""
+        error = IntrospectionTokenError("Custom error message")
+        assert str(error) == "Custom error message"
+        assert error.message == "Custom error message"
+
+    def test_is_exception(self):
+        """Error can be raised and caught."""
+        with pytest.raises(IntrospectionTokenError):
+            raise IntrospectionTokenError("Test error")
