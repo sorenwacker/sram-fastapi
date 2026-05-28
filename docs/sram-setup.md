@@ -137,6 +137,113 @@ Generate a secure secret key:
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
+## Step 6: Enable Application Token Support (Optional)
+
+SRAM application tokens allow users to authenticate via CLI or API without browser-based login. To enable this:
+
+### Get the Service Introspection Token
+
+1. Go to [sram.surf.nl](https://sram.surf.nl)
+2. Navigate to **Services** and find your service
+3. Look for **Token introspection** or **API settings**
+4. Copy the introspection token (this is a service-level credential)
+
+### Configure Your Application
+
+Add the introspection token to your environment:
+
+```bash
+# .env file (add to existing config)
+SRAM_INTROSPECTION_TOKEN=your-service-introspection-token
+SRAM_INTROSPECTION_URL=https://sram.surf.nl/api/tokens/introspect
+```
+
+### How Users Create Application Tokens
+
+Users create their own tokens through the SRAM portal:
+
+1. Go to [sram.surf.nl](https://sram.surf.nl)
+2. Navigate to the collaboration they're a member of
+3. Find **Tokens** or **Application tokens** section
+4. Select your application from the list
+5. Click **Create token**
+6. Copy the generated token
+
+Users then include this token in API requests:
+
+```bash
+curl -H "Authorization: Bearer USER_TOKEN" https://your-app.example.com/api/endpoint
+```
+
+### Token Introspection Response
+
+When validating a user token, SRAM returns:
+
+```json
+{
+  "active": true,
+  "status": "token-valid",
+  "sub": "user-id@sram.surf.nl",
+  "user": {
+    "name": "User Name",
+    "email": "user@institution.nl",
+    "username": "username",
+    "eduperson_entitlement": ["urn:mace:surf.nl:sram:group:..."],
+    "voperson_external_affiliation": "employee@institution.nl"
+  }
+}
+```
+
+Possible status values:
+
+| Status | Meaning |
+|--------|---------|
+| `token-valid` | Token is active and valid |
+| `token-unknown` | Token not recognized (wrong service or invalid) |
+| `token-expired` | Token has expired |
+| `user-suspended` | User account is suspended |
+| `token-not-connected` | Service not connected to user's collaboration |
+
+## SRAM API Capabilities and Limitations
+
+SRAM provides APIs for authentication and token validation, but has limited support for programmatic management.
+
+### What Applications Can Do
+
+| Capability | Supported | Method |
+|------------|-----------|--------|
+| Authenticate users (browser) | Yes | OIDC/SAML |
+| Validate user tokens | Yes | Token introspection API |
+| Read user attributes | Yes | From token/introspection response |
+| Read group memberships | Yes | Via `eduperson_entitlement` claim |
+
+### What Applications Cannot Do
+
+| Capability | Supported | Alternative |
+|------------|-----------|-------------|
+| Create groups | No | Collaboration admins via SRAM portal |
+| Delete groups | No | Collaboration admins via SRAM portal |
+| Add users to groups | No | Collaboration admins invite users |
+| Remove users from groups | No | Collaboration admins via SRAM portal |
+| Manage collaborations | No | Via SRAM portal only |
+
+### Why These Limitations Exist
+
+SRAM is designed as a central identity and access management system where:
+
+- **Human administrators** control access decisions
+- **Audit trails** track who granted access and when
+- **Institutional policies** govern collaboration membership
+
+This separation of concerns ensures that applications cannot unilaterally grant or revoke access.
+
+### For Advanced Use Cases
+
+If you need programmatic group management, contact SURF:
+
+- Email: sram-support@surf.nl
+- Documentation: [SRAM Wiki](https://wiki.surfnet.nl/display/SRAM)
+
 ## Troubleshooting
 
 ### "Unknown Client ID" Error

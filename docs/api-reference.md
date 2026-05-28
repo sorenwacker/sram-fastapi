@@ -38,7 +38,7 @@ user = User.from_claims(claims)
 
 ### OIDCClient
 
-Client for SRAM OIDC authentication. Handles the OAuth2 flow.
+Client for SRAM OIDC authentication. Handles the OAuth2 flow and token introspection.
 
 ```python
 from sram_fastapi.auth import OIDCClient
@@ -51,9 +51,38 @@ response = await client.authorize_redirect(request, redirect_uri)
 # Handle callback after authentication
 token, user = await client.handle_callback(request)
 
-# Introspect a Bearer token (for API access)
+# Introspect an OIDC access token
 token_info = await client.introspect_token(token_string)
+
+# Introspect a SRAM application token (for CLI/API access)
+result = await client.introspect_sram_token(user_token)
 ```
+
+#### Token Introspection Flow
+
+SRAM supports two types of tokens with different introspection methods:
+
+**OIDC Access Tokens** (browser login):
+- Obtained through OAuth2/OIDC flow
+- Validated via `introspect_token()` using OIDC introspection endpoint
+- Short-lived (typically 1 hour)
+
+**SRAM Application Tokens** (CLI/API access):
+- Created by users in the SRAM portal for specific applications
+- Validated via `introspect_sram_token()` using SRAM's token API
+- Configurable expiration (days to months)
+
+```
+User                          Your App                         SRAM
+  |                              |                               |
+  |-- Bearer USER_TOKEN -------->|                               |
+  |                              |-- introspect(USER_TOKEN) ---->|
+  |                              |   (using SERVICE_TOKEN)       |
+  |                              |<-- user info ------------------|
+  |<-- Response -----------------|                               |
+```
+
+The **service introspection token** is a server-side secret your app uses to validate user tokens. Users never see or need this token.
 
 ### Dependency Functions
 
@@ -295,6 +324,8 @@ async def info(settings: Settings = Depends(get_settings)):
 | `SRAM_OIDC_CLIENT_ID` | Yes | - | OIDC client ID from SRAM |
 | `SRAM_OIDC_CLIENT_SECRET` | Yes | - | OIDC client secret |
 | `SRAM_OIDC_DISCOVERY_URL` | No | `https://proxy.sram.surf.nl/.well-known/openid-configuration` | OIDC discovery endpoint |
+| `SRAM_INTROSPECTION_TOKEN` | No | - | Service token for validating user application tokens |
+| `SRAM_INTROSPECTION_URL` | No | `https://sram.surf.nl/api/tokens/introspect` | SRAM token introspection endpoint |
 | `SECRET_KEY` | Yes | - | Secret for session encryption |
 | `BASE_URL` | No | `http://localhost:8124` | Public URL of your app |
 | `DEBUG` | No | `false` | Enable debug mode |
