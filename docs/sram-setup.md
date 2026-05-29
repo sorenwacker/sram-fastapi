@@ -139,7 +139,84 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ## Step 6: Enable Application Token Support (Optional)
 
-SRAM application tokens allow users to authenticate via CLI or API without browser-based login. To enable this:
+SRAM supports two authentication methods: browser-based OIDC login and application tokens for CLI/API access.
+
+### Understanding SRAM Tokens
+
+There are two distinct types of tokens involved in application token authentication:
+
+#### User Application Tokens
+
+**What they are:** Personal access tokens that users create in the SRAM portal to authenticate with your application without browser login.
+
+**Who creates them:** End users, through the SRAM portal.
+
+**What they're used for:** CLI tools, scripts, API clients, automated workflows - any scenario where browser-based login isn't practical.
+
+**How users create them:**
+1. User logs into SRAM portal
+2. Navigates to their collaboration
+3. Finds "Tokens" or "Application tokens" section
+4. Selects your application and creates a token
+5. Copies the token for use in their scripts/tools
+
+**How users use them:**
+```bash
+curl -H "Authorization: Bearer <user-application-token>" https://your-app/api/endpoint
+```
+
+**Properties:**
+- Tied to a specific user and application
+- Have configurable expiration (days to months)
+- Can be revoked by the user or admin
+- Inherit the user's group memberships and permissions
+
+#### Service Introspection Token
+
+**What it is:** A server-side credential that your application uses to validate user tokens with SRAM.
+
+**Who creates it:** Service administrators, through SRAM service configuration.
+
+**What it's used for:** Your application uses this token to ask SRAM "is this user's token valid, and who does it belong to?"
+
+**How it works:**
+```
+User                          Your App                         SRAM
+  |                              |                               |
+  |-- Bearer <user-token> ------>|                               |
+  |                              |                               |
+  |                              |-- POST /api/tokens/introspect |
+  |                              |   Authorization: Bearer       |
+  |                              |     <service-introspection-   |
+  |                              |      token>                   |
+  |                              |   Body: token=<user-token>    |
+  |                              |                               |
+  |                              |<-- 200 OK -------------------|
+  |                              |   {                           |
+  |                              |     "active": true,           |
+  |                              |     "user": { ... }           |
+  |                              |   }                           |
+  |                              |                               |
+  |<-- 200 OK ------------------|                               |
+  |   {"message": "Hello!"}     |                               |
+```
+
+**Properties:**
+- Server-side secret - users never see this token
+- One per service/application
+- Must be kept secure (environment variable, secrets manager)
+- If compromised or expired, all token validation fails
+
+#### Key Differences
+
+| Aspect | User Application Token | Service Introspection Token |
+|--------|----------------------|----------------------------|
+| Created by | End users | Service administrators |
+| Stored in | User's password manager, scripts | Server environment variables |
+| Purpose | Authenticate API requests | Validate user tokens |
+| Visibility | User knows their own token | Users never see this |
+| Scope | One user, one application | All users of the service |
+| If compromised | Revoke and create new one | Update server config immediately |
 
 ### Get the Service Introspection Token
 
