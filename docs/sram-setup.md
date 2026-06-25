@@ -14,7 +14,6 @@ Services must be registered in SRAM before they can be connected to collaboratio
 ### Submit a Service Registration Request
 
 1. Go to the [SRAM Service Registration Form](https://sram.surf.nl/new-service-request)
-   - For testing, use the acceptance environment: [acc.sram.surf.nl/new-service-request](https://acc.sram.surf.nl/new-service-request)
 2. Log in with your institutional account
 3. Fill in the required information:
 
@@ -32,6 +31,16 @@ Services must be registered in SRAM before they can be connected to collaboratio
 4. Submit the request
 
 SURF will review your request and contact you if clarification is needed. For questions, contact sram-support@surf.nl.
+
+### Testing environment
+
+SURF provides a testing environment for SRAM.
+In this environment you can create test accounts and play with the application.
+You'll likely have to ask `ICT-Servicedesk@tudelft.nl` to enable it for your account.
+
+1. Register your application in the acceptance environment: [acc.sram.surf.nl/new-service-request](https://acc.sram.surf.nl/new-service-request)
+2. Create an application account and as many test accounts as needed in the eduID test enviroment: [https://test.eduid.nl/home](https://test.eduid.nl/home)
+    - Tip: you can use "+" to create unlimited emails, e.g. `my_netid+test1@tudelft.nl`, `my_netid+test2@tudelft.nl`
 
 ### Authentication Protocol Options
 
