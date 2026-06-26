@@ -36,11 +36,12 @@ SURF will review your request and contact you if clarification is needed. For qu
 
 SURF provides a testing environment for SRAM.
 In this environment you can create test accounts and play with the application.
-You'll likely have to ask `ICT-Servicedesk@tudelft.nl` to enable it for your account.
 
-1. Register your application in the acceptance environment: [acc.sram.surf.nl/new-service-request](https://acc.sram.surf.nl/new-service-request)
-2. Create an application account and as many test accounts as needed in the eduID test enviroment: [https://test.eduid.nl/home](https://test.eduid.nl/home)
+1. Create an application account and as many test accounts as needed in the eduID test enviroment: [https://test.eduid.nl/home](https://test.eduid.nl/home)
     - Tip: you can use "+" to create unlimited emails, e.g. `my_netid+test1@tudelft.nl`, `my_netid+test2@tudelft.nl`
+2. Log in the acceptance environment with the test account you just created: [acc.sram.surf.nl/new-service-request](https://acc.sram.surf.nl/new-service-request)
+    - For institution select: `eduID (NL) test environment`
+3. Register the application in the acceptance environment
 
 ### Authentication Protocol Options
 
