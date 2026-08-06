@@ -24,6 +24,17 @@ Integrating OIDC authentication requires handling authorization flows, token man
 - A demo application for testing the authentication flow
 - Reusable components for building SRAM-authenticated services
 
+## Documentation
+
+Full documentation is published on GitHub Pages at [sorenwacker.github.io/sram-fastapi](https://sorenwacker.github.io/sram-fastapi/):
+
+- [API Reference](https://sorenwacker.github.io/sram-fastapi/api-reference/): Python modules and how to use them in your FastAPI application
+- [Authorization](https://sorenwacker.github.io/sram-fastapi/authorization/): implementing authorization in a SRAM-authenticated application
+- [SRAM Setup](https://sorenwacker.github.io/sram-fastapi/sram-setup/): registering the application as a service in SRAM and connecting it to collaborations
+- [Deployment](https://sorenwacker.github.io/sram-fastapi/deployment/): deploying the application to production
+
+The documentation sources live in `docs/` and are built with mkdocs (`uv run mkdocs serve` for a local preview).
+
 ## Features
 
 - Browser-based OIDC authentication with session cookies
