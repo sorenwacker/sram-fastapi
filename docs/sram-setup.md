@@ -291,45 +291,42 @@ Possible status values:
 | `user-suspended` | User account is suspended |
 | `token-not-connected` | Service not connected to user's collaboration |
 
-## SRAM API Capabilities and Limitations
+## SRAM API Capabilities
 
-SRAM provides APIs for authentication and token validation, but has limited support for programmatic management.
+What an application can do depends on which SRAM credential it holds.
 
-### What Applications Can Do
+### With the OIDC client credentials
 
-| Capability | Supported | Method |
-|------------|-----------|--------|
-| Authenticate users (browser) | Yes | OIDC/SAML |
-| Validate user tokens | Yes | Token introspection API |
-| Read user attributes | Yes | From token/introspection response |
-| Read group memberships | Yes | Via `eduperson_entitlement` claim |
+| Capability | Method |
+|------------|--------|
+| Authenticate users in the browser | OIDC/SAML |
+| Read user attributes | Token or introspection response |
+| Read group and collaboration memberships | `eduperson_entitlement` claim |
+| Validate user application tokens | Token introspection API, using the service introspection token |
 
-### What Applications Cannot Do
+These credentials are read-only with respect to SRAM's own data. They cannot create or change collaborations, groups or memberships.
 
-| Capability | Supported | Alternative |
-|------------|-----------|-------------|
-| Create groups | No | Collaboration admins via SRAM portal |
-| Delete groups | No | Collaboration admins via SRAM portal |
-| Add users to groups | No | Collaboration admins invite users |
-| Remove users from groups | No | Collaboration admins via SRAM portal |
-| Manage collaborations | No | Via SRAM portal only |
+### With an organisation API token
 
-### Why These Limitations Exist
+An organisation admin or manager can issue an API token on the organisation's **API tokens** tab in SRAM. That token authorises the full management surface for collaborations belonging to that organisation:
 
-SRAM is designed as a central identity and access management system where:
+| Capability | Endpoint |
+|------------|----------|
+| Create and delete collaborations | `POST` and `DELETE /api/collaborations/v1` |
+| Read a collaboration with its members, groups and services | `GET /api/collaborations/v1/{co_identifier}` |
+| Invite users by email as member or admin | `PUT /api/invitations/v1/collaboration_invites` |
+| Change a member's role between `admin` and `member` | `PUT /api/collaborations/v1/{co_identifier}/members` |
+| Remove a member | `DELETE /api/collaborations/v1/{co_identifier}/members/{user_uid}` |
+| Create, update and delete groups and their memberships | `/api/groups/v1` |
+| Connect a service to a collaboration | `PUT /api/collaborations_services/v1/connect_collaboration_service/{co_identifier}` |
 
-- **Human administrators** control access decisions
-- **Audit trails** track who granted access and when
-- **Institutional policies** govern collaboration membership
+The token is scoped to a single organisation and is an administrator credential. It belongs in server-side configuration, never in a browser or a user session, and the application must apply its own authorization before using it.
 
-This separation of concerns ensures that applications cannot unilaterally grant or revoke access.
+See [Collaboration Management](collaboration-management.md) for how this application uses the organisation API, and the [SRAM API specification](https://sram.surf.nl/apidocs/) for the complete definition.
 
-### For Advanced Use Cases
+### With the service SCIM token
 
-If you need programmatic group management, contact SURF:
-
-- Email: sram-support@surf.nl
-- Documentation: [SRAM Wiki](https://wiki.surfnet.nl/display/SRAM)
+A registered service can read the users and groups of the collaborations connected to it through `GET /api/scim/v2/Users` and `GET /api/scim/v2/Groups`. This route is read-only.
 
 ## Troubleshooting
 

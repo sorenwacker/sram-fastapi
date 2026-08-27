@@ -12,6 +12,7 @@ nav:
   - Home: index.md
   - API Reference: api-reference.md
   - Authorization: authorization.md
+  - Collaboration Management: collaboration-management.md
   - SRAM Setup: sram-setup.md
   - Deployment: deployment.md
 
