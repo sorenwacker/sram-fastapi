@@ -52,7 +52,7 @@
                         <button type="submit">{{ "Demote to member" if member.role == "admin" else "Promote to admin" }}</button>
                     </form>
                     <form method="post" action="/collaborations/{{ collaboration.identifier }}/members/remove"
-                          onsubmit="return confirm('Remove {{ member.name }} from {{ collaboration.name }}?');">
+                          data-confirm="Remove {{ member.name }} from {{ collaboration.name }}?">
                         <input type="hidden" name="uid" value="{{ member.uid }}">
                         <button type="submit" class="danger">Remove</button>
                     </form>
@@ -107,7 +107,7 @@
                         <button type="submit">Make {{ "member" if invitation.intended_role == "admin" else "admin" }}</button>
                     </form>
                     <form method="post" action="/collaborations/{{ collaboration.identifier }}/invitations/{{ invitation.identifier }}/withdraw"
-                          onsubmit="return confirm('Withdraw the invitation for {{ invitation.email }}?');">
+                          data-confirm="Withdraw the invitation for {{ invitation.email }}?">
                         <button type="submit" class="danger">Withdraw</button>
                     </form>
                 </td>
@@ -157,7 +157,7 @@
                         <button type="submit">Remove member</button>
                     </form>
                     <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/delete"
-                          onsubmit="return confirm('Delete the group {{ group.name }}?');">
+                          data-confirm="Delete the group {{ group.name }}?">
                         <button type="submit" class="danger">Delete group</button>
                     </form>
                 </td>
@@ -203,7 +203,7 @@
             <button type="submit">Connect this service</button>
         </form>
         <form method="post" action="/collaborations/{{ collaboration.identifier }}/services/disconnect"
-              onsubmit="return confirm('Disconnect this service? Members lose access to this application.');">
+              data-confirm="Disconnect this service? Members lose access to this application.">
             <button type="submit" class="danger">Disconnect this service</button>
         </form>
     </div>
@@ -220,7 +220,7 @@
         Removes the collaboration and all its memberships in SRAM. This cannot be undone.
     </p>
     <form method="post" action="/collaborations/{{ collaboration.identifier }}/delete"
-          onsubmit="return confirm('Delete {{ collaboration.name }} and all its memberships?');">
+          data-confirm="Delete {{ collaboration.name }} and all its memberships?">
         <button type="submit" class="danger">Delete collaboration</button>
     </form>
     <p class="api-hint">DELETE /api/collaborations/v1/{{ collaboration.identifier }}</p>
@@ -228,6 +228,19 @@
 {% endif %}
 
 <p><a href="/collaborations">Back to collaborations</a></p>
+
+<script>
+    // Confirmation text is carried in a data attribute rather than an inline handler:
+    // an attribute value is HTML-decoded before it would reach the JavaScript parser,
+    // so HTML escaping alone cannot keep a name or email out of the script.
+    document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+            if (!window.confirm(form.dataset.confirm)) {
+                event.preventDefault();
+            }
+        });
+    });
+</script>
 {% endblock %}
 
 {% block styles %}
