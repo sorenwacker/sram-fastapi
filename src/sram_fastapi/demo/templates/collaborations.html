@@ -38,6 +38,14 @@
     </ul>
 </div>
 {% else %}
+{% if is_manager %}
+<div class="card">
+    <h2>Provision</h2>
+    <p class="section-intro">You hold the manager entitlement, so you can create collaborations.</p>
+    <p style="margin-top: 0.75rem;"><a href="/collaborations/new">New collaboration</a></p>
+</div>
+{% endif %}
+
 <div class="card">
     <h2>Your collaborations</h2>
     {% if collaborations %}

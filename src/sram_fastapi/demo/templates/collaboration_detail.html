@@ -91,6 +91,20 @@
     </table>
 </div>
 
+{% if is_manager %}
+<div class="card" style="border-left: 4px solid #c53030;">
+    <h2>Delete collaboration</h2>
+    <p class="section-intro">
+        Removes the collaboration and all its memberships in SRAM. This cannot be undone.
+    </p>
+    <form method="post" action="/collaborations/{{ collaboration.identifier }}/delete"
+          onsubmit="return confirm('Delete {{ collaboration.name }} and all its memberships?');">
+        <button type="submit" class="danger">Delete collaboration</button>
+    </form>
+    <p class="api-hint">DELETE /api/collaborations/v1/{{ collaboration.identifier }}</p>
+</div>
+{% endif %}
+
 <p><a href="/collaborations">Back to collaborations</a></p>
 {% endblock %}
 
@@ -101,5 +115,7 @@
     th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
     th { color: #4a5568; font-size: 0.85rem; }
     .api-hint { margin-top: 0.75rem; font-family: monospace; font-size: 0.8rem; color: #a0aec0; }
+    button { padding: 0.5rem 1rem; border: none; border-radius: 4px; background: #3182ce; color: white; cursor: pointer; font-size: 0.9rem; }
+    button.danger { background: #c53030; }
 </style>
 {% endblock %}

@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sram_fastapi.auth import User, get_optional_user
 from sram_fastapi.collaborations import (
     Collaboration,
+    CollaborationCreate,
     Group,
     Membership,
     Organisation,
@@ -64,11 +65,29 @@ def other_collaboration() -> Collaboration:
 
 
 class FakeClient:
-    """Stub organisation client that serves fixed data."""
+    """Stub organisation client that serves fixed data and records calls."""
 
     def __init__(self, configured: bool = True, error: Exception | None = None):
         self.configured = configured
         self.error = error
+        self.created: CollaborationCreate | None = None
+        self.connected: list[str] = []
+        self.deleted: list[str] = []
+
+    async def create_collaboration(self, spec: "CollaborationCreate") -> Collaboration:
+        """Record the creation and return the new collaboration."""
+        if self.error:
+            raise self.error
+        self.created = spec
+        return collaboration()
+
+    async def connect_service(self, identifier: str) -> None:
+        """Record the service connection."""
+        self.connected.append(identifier)
+
+    async def delete_collaboration(self, identifier: str) -> None:
+        """Record the deletion."""
+        self.deleted.append(identifier)
 
     async def get_organisation(self) -> Organisation:
         """Return the organisation with both collaborations."""
@@ -219,3 +238,104 @@ class TestCollaborationDetail:
         response = http.get(f"/collaborations/{CO_IDENTIFIER}")
         assert "AI researchers" in response.text
         assert "https://service.cloud.example.com" in response.text
+
+
+class TestProvisioning:
+    """Tests for creating and deleting collaborations from the demo application."""
+
+    def test_form_requires_manager_entitlement(self, settings: Settings):
+        """A member without the manager entitlement cannot open the creation form."""
+        http = build_client(settings, user_with(MEMBER), FakeClient())
+        assert http.get("/collaborations/new").status_code == 403
+
+    def test_manager_sees_form(self, settings: Settings):
+        """A manager sees the creation form."""
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), FakeClient())
+        response = http.get("/collaborations/new")
+        assert response.status_code == 200
+        assert "New collaboration" in response.text
+
+    def test_form_reports_missing_service_entity_id(self, settings: Settings):
+        """Without a service entity ID the form explains why creation is unavailable."""
+        settings.sram_service_entity_id = None
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), FakeClient())
+        response = http.get("/collaborations/new")
+        assert response.status_code == 200
+        assert "SRAM_SERVICE_ENTITY_ID" in response.text
+
+    def test_create_connects_service_and_redirects(self, settings: Settings):
+        """Creating a collaboration also connects this service, then opens the detail page."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+
+        response = http.post(
+            "/collaborations/new",
+            data={
+                "name": "Cumulus research group",
+                "description": "Cumulus research group.",
+                "administrators": "jdoe@uniharderwijk.nl, adoe@uniharderwijk.nl",
+                "short_name": "cumulusgrp",
+                "disclose_member_information": "on",
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == f"/collaborations/{CO_IDENTIFIER}"
+        assert fake.created.name == "Cumulus research group"
+        assert fake.created.administrators == [
+            "jdoe@uniharderwijk.nl",
+            "adoe@uniharderwijk.nl",
+        ]
+        assert fake.created.disclose_member_information is True
+        assert fake.created.disclose_email_information is False
+        assert fake.connected == [CO_IDENTIFIER]
+
+    def test_create_requires_manager_entitlement(self, settings: Settings):
+        """A member without the manager entitlement cannot create a collaboration."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER), fake)
+        response = http.post(
+            "/collaborations/new",
+            data={
+                "name": "Cumulus research group",
+                "description": "Cumulus research group.",
+                "administrators": "jdoe@uniharderwijk.nl",
+            },
+        )
+        assert response.status_code == 403
+        assert fake.created is None
+
+    def test_create_refused_without_service_entity_id(self, settings: Settings):
+        """Creation is refused while the service entity ID is missing."""
+        settings.sram_service_entity_id = None
+        fake = FakeClient()
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+        response = http.post(
+            "/collaborations/new",
+            data={
+                "name": "Cumulus research group",
+                "description": "Cumulus research group.",
+                "administrators": "jdoe@uniharderwijk.nl",
+            },
+        )
+        assert response.status_code == 400
+        assert fake.created is None
+
+    def test_delete_requires_manager_entitlement(self, settings: Settings):
+        """A collaboration admin without the manager entitlement cannot delete it."""
+        fake = FakeClient()
+        user = user_with(MEMBER, sub="admin-uid@sram.eduteams.org")
+        http = build_client(settings, user, fake)
+        response = http.post(f"/collaborations/{CO_IDENTIFIER}/delete")
+        assert response.status_code == 403
+        assert fake.deleted == []
+
+    def test_manager_deletes_collaboration(self, settings: Settings):
+        """A manager deletes the collaboration and returns to the overview."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+        response = http.post(f"/collaborations/{CO_IDENTIFIER}/delete", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/collaborations"
+        assert fake.deleted == [CO_IDENTIFIER]

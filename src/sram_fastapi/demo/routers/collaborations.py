@@ -15,13 +15,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from sram_fastapi.auth import AuthorizationError, User, get_optional_user
 from sram_fastapi.collaborations import (
     Collaboration,
+    CollaborationCreate,
     SRAMAPIError,
     SRAMOrganisationClient,
     collaboration_urns,
@@ -115,6 +116,29 @@ def _require_access(user: User, collaboration: Collaboration, settings: Settings
     )
 
 
+def _require_manager(user: User, settings: Settings) -> None:
+    """Raise unless the user may provision collaborations.
+
+    Raises:
+        AuthorizationError: If the user does not hold the manager entitlement.
+    """
+    if _is_manager(user, settings):
+        return
+    raise AuthorizationError(
+        required=[settings.collaboration_manager_entitlement or "collaboration manager"],
+        actual=user.eduperson_entitlement or [],
+        check_type="entitlement",
+    )
+
+
+def _split_list(value: str | None) -> list[str]:
+    """Split a comma or newline separated form field into a list of values."""
+    if not value:
+        return []
+    parts = value.replace("\n", ",").split(",")
+    return [part.strip() for part in parts if part.strip()]
+
+
 def create_collaborations_router() -> APIRouter:
     """Create the collaboration management router.
 
@@ -169,6 +193,108 @@ def create_collaborations_router() -> APIRouter:
             status_code=status_code,
             context=context,
         )
+
+    @router.get("/new", response_class=HTMLResponse)
+    async def new_collaboration_form(
+        request: Request,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> Response:
+        """Show the form for provisioning a collaboration."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        _require_manager(user, settings)
+
+        return templates.TemplateResponse(
+            request=request,
+            name="collaboration_new.html",
+            context={
+                "user": user,
+                "configured": client.configured,
+                "service_entity_id": settings.sram_service_entity_id,
+                "error": None,
+            },
+        )
+
+    @router.post("/new", response_class=HTMLResponse)
+    async def create_collaboration(
+        request: Request,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        name: Annotated[str, Form()],
+        description: Annotated[str, Form()],
+        administrators: Annotated[str, Form()],
+        short_name: Annotated[str, Form()] = "",
+        website_url: Annotated[str, Form()] = "",
+        message: Annotated[str, Form()] = "",
+        tags: Annotated[str, Form()] = "",
+        units: Annotated[str, Form()] = "",
+        disable_join_requests: Annotated[bool, Form()] = False,
+        disclose_member_information: Annotated[bool, Form()] = False,
+        disclose_email_information: Annotated[bool, Form()] = False,
+    ) -> Response:
+        """Create a collaboration and connect this service to it."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        _require_manager(user, settings)
+
+        if not settings.sram_service_entity_id:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "SRAM_SERVICE_ENTITY_ID is not configured, so a new collaboration "
+                    "could not be connected to this service."
+                ),
+            )
+
+        spec = CollaborationCreate(
+            name=name,
+            description=description,
+            administrators=_split_list(administrators),
+            short_name=short_name or None,
+            website_url=website_url or None,
+            message=message or None,
+            tags=_split_list(tags),
+            units=_split_list(units),
+            disable_join_requests=disable_join_requests,
+            disclose_member_information=disclose_member_information,
+            disclose_email_information=disclose_email_information,
+        )
+
+        try:
+            collaboration = await client.create_collaboration(spec)
+            await client.connect_service(collaboration.identifier)
+        except SRAMAPIError as exc:
+            return templates.TemplateResponse(
+                request=request,
+                name="collaboration_new.html",
+                status_code=502,
+                context={
+                    "user": user,
+                    "configured": client.configured,
+                    "service_entity_id": settings.sram_service_entity_id,
+                    "error": str(exc),
+                },
+            )
+
+        return RedirectResponse(f"/collaborations/{collaboration.identifier}", status_code=303)
+
+    @router.post("/{identifier}/delete")
+    async def delete_collaboration(
+        identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> Response:
+        """Delete a collaboration and return to the overview."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        _require_manager(user, settings)
+
+        await client.delete_collaboration(identifier)
+        return RedirectResponse("/collaborations", status_code=303)
 
     @router.get("/{identifier}", response_class=HTMLResponse)
     async def collaboration_detail(

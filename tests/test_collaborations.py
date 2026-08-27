@@ -1,10 +1,13 @@
 """Tests for the SRAM organisation API client."""
 
+import json
+
 import httpx
 import pytest
 
 from sram_fastapi.collaborations import (
     CollaborationConflictError,
+    CollaborationCreate,
     CollaborationNotFoundError,
     OrganisationTokenError,
     SRAMAPIError,
@@ -268,3 +271,101 @@ class TestEntitlementMapping:
             entitlement_for("uniharderwijk:cumulusgrp")
             == "urn:mace:surf.nl:sram:group:uniharderwijk:cumulusgrp"
         )
+
+
+class TestProvisioning:
+    """Tests for creating, connecting and deleting collaborations."""
+
+    async def test_create_collaboration_sends_required_fields(self):
+        """Creation sends the fields SRAM requires, and returns the new collaboration."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(201, json=COLLABORATION_DETAIL)
+
+        created = await make_client(handler).create_collaboration(
+            CollaborationCreate(
+                name="Cumulus research group",
+                description="Cumulus research group.",
+                administrators=["jdoe@uniharderwijk.nl"],
+                short_name="cumulusgrp",
+                disable_join_requests=True,
+                disclose_member_information=True,
+                disclose_email_information=False,
+                message="Please join.",
+                tags=["label_test"],
+                units=["fac_wiskunde"],
+            )
+        )
+
+        assert seen["method"] == "POST"
+        assert seen["path"] == "/api/collaborations/v1"
+        assert seen["body"]["name"] == "Cumulus research group"
+        assert seen["body"]["administrators"] == ["jdoe@uniharderwijk.nl"]
+        assert seen["body"]["disable_join_requests"] is True
+        assert seen["body"]["disclose_member_information"] is True
+        assert seen["body"]["disclose_email_information"] is False
+        assert seen["body"]["short_name"] == "cumulusgrp"
+        assert seen["body"]["tags"] == ["label_test"]
+        assert created.identifier == "301ee8e6-b5d1-40b5-a27e-47611f803371"
+
+    async def test_create_collaboration_omits_empty_optionals(self):
+        """Optional fields that were not given are left out of the request."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(201, json=COLLABORATION_DETAIL)
+
+        await make_client(handler).create_collaboration(
+            CollaborationCreate(
+                name="Cumulus research group",
+                description="Cumulus research group.",
+                administrators=["jdoe@uniharderwijk.nl"],
+            )
+        )
+
+        assert "short_name" not in seen["body"]
+        assert "website_url" not in seen["body"]
+        assert "tags" not in seen["body"]
+
+    async def test_connect_service_uses_configured_entity_id(self):
+        """Connecting falls back to the service entity ID from settings."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(201, json={"status": "connected"})
+
+        await make_client(handler).connect_service("co-1")
+
+        assert seen["method"] == "PUT"
+        assert seen["path"] == (
+            "/api/collaborations_services/v1/connect_collaboration_service/co-1"
+        )
+        assert seen["body"] == {"service_entity_id": "https://service.cloud.example.com"}
+
+    async def test_connect_service_without_entity_id_raises(self):
+        """Connecting without a configured entity ID raises rather than guessing."""
+        client = SRAMOrganisationClient(make_settings(sram_service_entity_id=None))
+        with pytest.raises(SRAMNotConfiguredError):
+            await client.connect_service("co-1")
+
+    async def test_delete_collaboration(self):
+        """Deleting a collaboration sends DELETE and accepts an empty response."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            return httpx.Response(204)
+
+        await make_client(handler).delete_collaboration("co-1")
+
+        assert seen["method"] == "DELETE"
+        assert seen["path"] == "/api/collaborations/v1/co-1"

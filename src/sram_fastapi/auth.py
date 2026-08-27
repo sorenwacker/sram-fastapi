@@ -107,8 +107,7 @@ class OIDCClient:
                 server_metadata_url=self.settings.sram_oidc_discovery_url,
                 client_kwargs={
                     "scope": (
-                        "openid email profile "
-                        "eduperson_entitlement voperson_external_affiliation"
+                        "openid email profile eduperson_entitlement voperson_external_affiliation"
                     ),
                 },
             )
