@@ -78,6 +78,44 @@ class FakeClient:
         self.roles: list[tuple[str, str, str]] = []
         self.removed: list[tuple[str, str]] = []
         self.invitation_actions: list[tuple[str, str]] = []
+        self.groups_created: list[dict] = []
+        self.groups_updated: list[dict] = []
+        self.groups_deleted: list[str] = []
+        self.group_members: list[tuple[str, str, str]] = []
+        self.service_actions: list[tuple[str, str]] = []
+
+    async def disconnect_service(self, identifier: str) -> None:
+        """Record a service disconnection."""
+        self.service_actions.append(("disconnect", identifier))
+
+    async def create_group(self, identifier, name, short_name, description=None, **kwargs):
+        """Record a group creation."""
+        self.groups_created.append(
+            {
+                "identifier": identifier,
+                "name": name,
+                "short_name": short_name,
+                "auto_provision_members": kwargs.get("auto_provision_members", False),
+            }
+        )
+        return Group(identifier="group-1", name=name, short_name=short_name)
+
+    async def update_group(self, group_identifier, name=None, description=None, **kwargs):
+        """Record a group update."""
+        self.groups_updated.append({"group": group_identifier, "name": name})
+        return Group(identifier=group_identifier, name=name or "")
+
+    async def delete_group(self, group_identifier: str) -> None:
+        """Record a group deletion."""
+        self.groups_deleted.append(group_identifier)
+
+    async def add_group_member(self, group_identifier: str, uid: str) -> None:
+        """Record a group membership addition."""
+        self.group_members.append(("add", group_identifier, uid))
+
+    async def remove_group_member(self, group_identifier: str, uid: str) -> None:
+        """Record a group membership removal."""
+        self.group_members.append(("remove", group_identifier, uid))
 
     async def list_open_invitations(self, identifier: str) -> list[Invitation]:
         """Return one open invitation."""
@@ -127,6 +165,7 @@ class FakeClient:
     async def connect_service(self, identifier: str) -> None:
         """Record the service connection."""
         self.connected.append(identifier)
+        self.service_actions.append(("connect", identifier))
 
     async def delete_collaboration(self, identifier: str) -> None:
         """Record the deletion."""
@@ -509,3 +548,134 @@ class TestMembershipManagement:
         response = http.get(f"/collaborations/{CO_IDENTIFIER}")
         assert "pending@uniharderwijk.nl" in response.text
         assert f"/collaborations/{CO_IDENTIFIER}/invite" in response.text
+
+
+class TestGroupManagement:
+    """Tests for managing groups from the demo application."""
+
+    def test_member_cannot_create_group(self, settings: Settings):
+        """An ordinary member cannot create a group."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/groups",
+            data={"name": "AI researchers", "short_name": "ai_researchers"},
+        )
+        assert response.status_code == 403
+        assert fake.groups_created == []
+
+    def test_admin_creates_group(self, settings: Settings):
+        """An admin creates a group in the collaboration."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/groups",
+            data={
+                "name": "AI researchers",
+                "short_name": "ai_researchers",
+                "description": "AI researchers group",
+                "auto_provision_members": "on",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert fake.groups_created == [
+            {
+                "identifier": CO_IDENTIFIER,
+                "name": "AI researchers",
+                "short_name": "ai_researchers",
+                "auto_provision_members": True,
+            }
+        ]
+
+    def test_admin_renames_group(self, settings: Settings):
+        """An admin renames a group."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/groups/group-1/update",
+            data={"name": "Renamed group"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert fake.groups_updated == [{"group": "group-1", "name": "Renamed group"}]
+
+    def test_admin_deletes_group(self, settings: Settings):
+        """An admin deletes a group."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/groups/group-1/delete", follow_redirects=False
+        )
+        assert response.status_code == 303
+        assert fake.groups_deleted == ["group-1"]
+
+    def test_admin_changes_group_membership(self, settings: Settings):
+        """An admin adds and removes a group member."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        uid = "member-uid@sram.eduteams.org"
+
+        assert (
+            http.post(
+                f"/collaborations/{CO_IDENTIFIER}/groups/group-1/members",
+                data={"uid": uid},
+                follow_redirects=False,
+            ).status_code
+            == 303
+        )
+        assert (
+            http.post(
+                f"/collaborations/{CO_IDENTIFIER}/groups/group-1/members/remove",
+                data={"uid": uid},
+                follow_redirects=False,
+            ).status_code
+            == 303
+        )
+
+        assert fake.group_members == [("add", "group-1", uid), ("remove", "group-1", uid)]
+
+    def test_member_does_not_see_group_controls(self, settings: Settings):
+        """Group management controls are shown to admins only."""
+        http = build_client(settings, user_with(MEMBER), FakeClient())
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert f"/collaborations/{CO_IDENTIFIER}/groups/group-1/delete" not in response.text
+
+    def test_admin_sees_group_controls(self, settings: Settings):
+        """An admin sees the group management controls."""
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), FakeClient())
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert f"/collaborations/{CO_IDENTIFIER}/groups/group-1/delete" in response.text
+
+
+class TestServiceConnection:
+    """Tests for connecting this service to a collaboration from the demo application."""
+
+    def test_member_cannot_change_service_connection(self, settings: Settings):
+        """An ordinary member cannot connect or disconnect the service."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER), fake)
+        assert http.post(f"/collaborations/{CO_IDENTIFIER}/services/connect").status_code == 403
+        assert http.post(f"/collaborations/{CO_IDENTIFIER}/services/disconnect").status_code == 403
+        assert fake.service_actions == []
+
+    def test_admin_connects_and_disconnects(self, settings: Settings):
+        """An admin connects and disconnects this service."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        assert (
+            http.post(
+                f"/collaborations/{CO_IDENTIFIER}/services/connect", follow_redirects=False
+            ).status_code
+            == 303
+        )
+        assert (
+            http.post(
+                f"/collaborations/{CO_IDENTIFIER}/services/disconnect", follow_redirects=False
+            ).status_code
+            == 303
+        )
+        assert fake.service_actions == [
+            ("connect", CO_IDENTIFIER),
+            ("disconnect", CO_IDENTIFIER),
+        ]

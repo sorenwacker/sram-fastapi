@@ -514,3 +514,125 @@ class TestMembership:
 
         assert seen["method"] == "DELETE"
         assert seen["path"] == "/api/collaborations/v1/co-1/members/member-uid@sram.eduteams.org"
+
+
+class TestGroups:
+    """Tests for managing groups inside a collaboration."""
+
+    async def test_create_group(self):
+        """Creating a group sends the collaboration identifier and the group attributes."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(
+                201,
+                json={
+                    "identifier": "group-1",
+                    "name": "AI researchers",
+                    "short_name": "ai_researchers",
+                },
+            )
+
+        group = await make_client(handler).create_group(
+            "co-1",
+            name="AI researchers",
+            short_name="ai_researchers",
+            description="AI researchers group",
+            auto_provision_members=True,
+        )
+
+        assert seen["method"] == "POST"
+        assert seen["path"] == "/api/groups/v1"
+        assert seen["body"] == {
+            "collaboration_identifier": "co-1",
+            "name": "AI researchers",
+            "short_name": "ai_researchers",
+            "auto_provision_members": True,
+            "description": "AI researchers group",
+        }
+        assert group.identifier == "group-1"
+
+    async def test_update_group(self):
+        """Updating a group sends only the changed attributes."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(201, json={"identifier": "group-1", "name": "Renamed"})
+
+        await make_client(handler).update_group("group-1", name="Renamed")
+
+        assert seen["method"] == "PUT"
+        assert seen["path"] == "/api/groups/v1/group-1"
+        assert seen["body"] == {"name": "Renamed"}
+
+    async def test_delete_group(self):
+        """Deleting a group targets the group identifier."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            return httpx.Response(204)
+
+        await make_client(handler).delete_group("group-1")
+
+        assert seen["method"] == "DELETE"
+        assert seen["path"] == "/api/groups/v1/group-1"
+
+    async def test_add_group_member(self):
+        """Adding a group member sends the uid."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(201, json={})
+
+        await make_client(handler).add_group_member("group-1", "member-uid@sram.eduteams.org")
+
+        assert seen["method"] == "POST"
+        assert seen["path"] == "/api/groups/v1/group-1"
+        assert seen["body"] == {"uid": "member-uid@sram.eduteams.org"}
+
+    async def test_remove_group_member(self):
+        """Removing a group member targets the membership by uid."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            return httpx.Response(204)
+
+        await make_client(handler).remove_group_member("group-1", "member-uid@sram.eduteams.org")
+
+        assert seen["method"] == "DELETE"
+        assert seen["path"] == "/api/groups/v1/group-1/members/member-uid@sram.eduteams.org"
+
+
+class TestServiceConnection:
+    """Tests for connecting and disconnecting this service."""
+
+    async def test_disconnect_service(self):
+        """Disconnecting sends the service entity ID to the disconnect endpoint."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(201, json={"status": "disconnected"})
+
+        await make_client(handler).disconnect_service("co-1")
+
+        assert seen["method"] == "PUT"
+        assert seen["path"] == (
+            "/api/collaborations_services/v1/disconnect_collaboration_service/co-1"
+        )
+        assert seen["body"] == {"service_entity_id": "https://service.cloud.example.com"}

@@ -433,6 +433,131 @@ def create_collaborations_router() -> APIRouter:
         await client.withdraw_invitation(invitation_id)
         return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
 
+    @router.post("/{identifier}/groups")
+    async def create_group(
+        identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        name: Annotated[str, Form()],
+        short_name: Annotated[str, Form()],
+        description: Annotated[str, Form()] = "",
+        auto_provision_members: Annotated[bool, Form()] = False,
+    ) -> Response:
+        """Create a group inside the collaboration."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.create_group(
+            identifier,
+            name=name,
+            short_name=short_name,
+            description=description or None,
+            auto_provision_members=auto_provision_members,
+        )
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/groups/{group_identifier}/update")
+    async def update_group(
+        identifier: str,
+        group_identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        name: Annotated[str, Form()] = "",
+        description: Annotated[str, Form()] = "",
+    ) -> Response:
+        """Change the name or description of a group."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.update_group(
+            group_identifier, name=name or None, description=description or None
+        )
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/groups/{group_identifier}/delete")
+    async def delete_group(
+        identifier: str,
+        group_identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> Response:
+        """Delete a group."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.delete_group(group_identifier)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/groups/{group_identifier}/members")
+    async def add_group_member(
+        identifier: str,
+        group_identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        uid: Annotated[str, Form()],
+    ) -> Response:
+        """Add a collaboration member to a group."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.add_group_member(group_identifier, uid)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/groups/{group_identifier}/members/remove")
+    async def remove_group_member(
+        identifier: str,
+        group_identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        uid: Annotated[str, Form()],
+    ) -> Response:
+        """Remove a member from a group."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.remove_group_member(group_identifier, uid)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/services/connect")
+    async def connect_service(
+        identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> Response:
+        """Connect this service to the collaboration."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.connect_service(identifier)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/services/disconnect")
+    async def disconnect_service(
+        identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> Response:
+        """Disconnect this service from the collaboration."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.disconnect_service(identifier)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
     @router.get("/{identifier}", response_class=HTMLResponse)
     async def collaboration_detail(
         request: Request,

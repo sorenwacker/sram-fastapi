@@ -125,7 +125,7 @@
     <h2>Groups</h2>
     <table>
         <thead>
-            <tr><th>Name</th><th>Short name</th><th>Members</th></tr>
+            <tr><th>Name</th><th>Short name</th><th>Members</th>{% if can_manage %}<th>Actions</th>{% endif %}</tr>
         </thead>
         <tbody>
             {% for group in collaboration.groups %}
@@ -133,12 +133,50 @@
                 <td>{{ group.name }}</td>
                 <td><code>{{ group.short_name }}</code></td>
                 <td>{{ group.member_uids | length }}</td>
+                {% if can_manage %}
+                <td class="actions">
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/update">
+                        <input type="text" name="name" placeholder="new name" required>
+                        <button type="submit">Rename</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/members">
+                        <select name="uid">
+                            {% for member in members %}
+                            <option value="{{ member.uid }}">{{ member.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit">Add member</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/members/remove">
+                        <select name="uid">
+                            {% for uid in group.member_uids %}
+                            <option value="{{ uid }}">{{ uid }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit">Remove member</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/delete"
+                          onsubmit="return confirm('Delete the group {{ group.name }}?');">
+                        <button type="submit" class="danger">Delete group</button>
+                    </form>
+                </td>
+                {% endif %}
             </tr>
             {% else %}
-            <tr><td colspan="3" style="color: #a0aec0;">No groups</td></tr>
+            <tr><td colspan="4" style="color: #a0aec0;">No groups</td></tr>
             {% endfor %}
         </tbody>
     </table>
+    {% if can_manage %}
+    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups" class="stacked" style="margin-top: 1rem;">
+        <label>Name<input type="text" name="name" required></label>
+        <label>Short name<input type="text" name="short_name" required></label>
+        <label>Description<input type="text" name="description"></label>
+        <label class="checkbox"><input type="checkbox" name="auto_provision_members"> Add every collaboration member automatically</label>
+        <button type="submit">Create group</button>
+    </form>
+    <p class="api-hint">POST /api/groups/v1</p>
+    {% endif %}
 </div>
 
 <div class="card">
@@ -158,6 +196,20 @@
             {% endfor %}
         </tbody>
     </table>
+    {% if can_manage %}
+    <div class="actions" style="margin-top: 1rem;">
+        <form method="post" action="/collaborations/{{ collaboration.identifier }}/services/connect">
+            <button type="submit">Connect this service</button>
+        </form>
+        <form method="post" action="/collaborations/{{ collaboration.identifier }}/services/disconnect"
+              onsubmit="return confirm('Disconnect this service? Members lose access to this application.');">
+            <button type="submit" class="danger">Disconnect this service</button>
+        </form>
+    </div>
+    <p class="api-hint">
+        PUT /api/collaborations_services/v1/connect_collaboration_service/{{ collaboration.identifier }}
+    </p>
+    {% endif %}
 </div>
 
 {% if is_manager %}
@@ -186,9 +238,11 @@
     .api-hint { margin-top: 0.75rem; font-family: monospace; font-size: 0.8rem; color: #a0aec0; }
     button { padding: 0.5rem 1rem; border: none; border-radius: 4px; background: #3182ce; color: white; cursor: pointer; font-size: 0.9rem; }
     button.danger { background: #c53030; }
-    td.actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    td.actions, div.actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
     td.actions form { display: inline; }
     form.stacked label { display: block; margin-bottom: 0.75rem; color: #4a5568; font-size: 0.9rem; }
+    form.stacked label.checkbox { display: flex; align-items: center; gap: 0.5rem; }
+    td.actions select, td.actions input[type="text"] { padding: 0.3rem; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 0.85rem; }
     form.stacked input[type="text"], form.stacked textarea, form.stacked select {
         display: block; width: 100%; margin-top: 0.25rem; padding: 0.5rem;
         border: 1px solid #cbd5e0; border-radius: 4px; font-size: 0.95rem;

@@ -393,6 +393,31 @@ class SRAMOrganisationClient:
             json={"service_entity_id": entity_id},
         )
 
+    async def disconnect_service(
+        self, identifier: str, service_entity_id: str | None = None
+    ) -> None:
+        """Disconnect a service from a collaboration.
+
+        Args:
+            identifier: The collaboration's SRAM identifier.
+            service_entity_id: Entity ID of the service to disconnect. Defaults to the
+                entity ID of this application from the settings.
+
+        Raises:
+            SRAMNotConfiguredError: If no service entity ID is given or configured.
+        """
+        entity_id = service_entity_id or self.settings.sram_service_entity_id
+        if not entity_id:
+            raise SRAMNotConfiguredError(
+                "No service entity ID configured. "
+                "Set SRAM_SERVICE_ENTITY_ID to disconnect this service from a collaboration."
+            )
+        await self._request(
+            "PUT",
+            f"/api/collaborations_services/v1/disconnect_collaboration_service/{identifier}",
+            json={"service_entity_id": entity_id},
+        )
+
     async def delete_collaboration(self, identifier: str) -> None:
         """Delete a collaboration.
 
@@ -512,6 +537,91 @@ class SRAMOrganisationClient:
             uid: The member's SRAM uid.
         """
         await self._request("DELETE", f"/api/collaborations/v1/{identifier}/members/{uid}")
+
+    async def create_group(
+        self,
+        identifier: str,
+        name: str,
+        short_name: str,
+        description: str | None = None,
+        auto_provision_members: bool = False,
+    ) -> Group:
+        """Create a group inside a collaboration.
+
+        Args:
+            identifier: The collaboration's SRAM identifier.
+            name: Display name of the group.
+            short_name: Short identifier, used in the group's entitlement.
+            description: What the group is for.
+            auto_provision_members: If true, every collaboration member joins this group.
+
+        Returns:
+            The created group.
+        """
+        payload: dict[str, Any] = {
+            "collaboration_identifier": identifier,
+            "name": name,
+            "short_name": short_name,
+            "auto_provision_members": auto_provision_members,
+        }
+        if description:
+            payload["description"] = description
+        data = await self._request("POST", "/api/groups/v1", json=payload)
+        return Group.from_api(data)
+
+    async def update_group(
+        self,
+        group_identifier: str,
+        name: str | None = None,
+        description: str | None = None,
+        auto_provision_members: bool | None = None,
+    ) -> Group:
+        """Update the properties of a group.
+
+        Args:
+            group_identifier: The group's SRAM identifier.
+            name: New display name.
+            description: New description.
+            auto_provision_members: New auto provisioning setting.
+
+        Returns:
+            The updated group.
+        """
+        payload: dict[str, Any] = {}
+        if name:
+            payload["name"] = name
+        if description:
+            payload["description"] = description
+        if auto_provision_members is not None:
+            payload["auto_provision_members"] = auto_provision_members
+        data = await self._request("PUT", f"/api/groups/v1/{group_identifier}", json=payload)
+        return Group.from_api(data)
+
+    async def delete_group(self, group_identifier: str) -> None:
+        """Delete a group.
+
+        Args:
+            group_identifier: The group's SRAM identifier.
+        """
+        await self._request("DELETE", f"/api/groups/v1/{group_identifier}")
+
+    async def add_group_member(self, group_identifier: str, uid: str) -> None:
+        """Add a collaboration member to a group.
+
+        Args:
+            group_identifier: The group's SRAM identifier.
+            uid: The member's SRAM uid.
+        """
+        await self._request("POST", f"/api/groups/v1/{group_identifier}", json={"uid": uid})
+
+    async def remove_group_member(self, group_identifier: str, uid: str) -> None:
+        """Remove a member from a group.
+
+        Args:
+            group_identifier: The group's SRAM identifier.
+            uid: The member's SRAM uid.
+        """
+        await self._request("DELETE", f"/api/groups/v1/{group_identifier}/members/{uid}")
 
     async def _request(self, method: str, path: str, json: dict | None = None) -> Any:
         """Send a request to the SRAM organisation API.
