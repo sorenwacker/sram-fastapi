@@ -6,6 +6,13 @@ base_url: https://sram-demo.ewi.tudelft.nl
 # SRAM OIDC
 sram_oidc_discovery_url: https://proxy.sram.surf.nl/.well-known/openid-configuration
 
+# SRAM organisation API (collaboration management)
+# Entity ID of this service in SRAM; without it a new collaboration cannot be connected
+sram_service_entity_id: ""
+# Entitlement required to provision and delete collaborations; without it nobody may
+collaboration_manager_entitlement: ""
+# The organisation API token itself lives in vault.yml as vault_sram_organisation_api_token
+
 # Gunicorn settings
 gunicorn_workers: 4
 gunicorn_port: 8080

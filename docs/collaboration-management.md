@@ -49,6 +49,8 @@ A newly created collaboration is not connected to any service. Its members canno
 
 `POST /api/collaborations/v1` requires `name`, `description`, `disable_join_requests`, `disclose_member_information`, `disclose_email_information` and `administrators`. `short_name` is generated when omitted. The response carries the generated `identifier` (a UUID) and `global_urn`, both of which the application needs afterwards.
 
+Because provisioning is two calls, it can fail halfway. If the collaboration is created but the connection fails, the application deletes the collaboration again and reports the failure, so no collaboration is left behind that nobody could reach. Deletion is safe at that point: the collaboration is seconds old, has no members beyond the pending admin invitations, and no service.
+
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -110,19 +112,21 @@ Dataclasses `Organisation`, `Collaboration`, `Membership`, `Group`, `Service`, `
 
 ### Errors
 
-| Condition | Exception | Handling |
-|-----------|-----------|----------|
-| No organisation API token, or no service entity ID where one is required | `SRAMNotConfiguredError` | Raised before any request is sent, so an unconfigured deployment never contacts SRAM |
-| SRAM answers 401 or 403 | `OrganisationTokenError` | The organisation API token is invalid, expired, or lacks rights on the target. Logged as an administrator action item, shown to the user as a configuration problem, mirroring `IntrospectionTokenError` |
-| SRAM answers 404 | `CollaborationNotFoundError` | The collaboration or invitation does not exist, or is outside this organisation |
-| SRAM answers 409 | `CollaborationConflictError` | For example a duplicate group membership or short name |
-| Transport failure or timeout | `SRAMAPIError` | Reported as "SRAM unavailable", never as a failure of the user's data |
+| Condition | Exception | Page |
+|-----------|-----------|------|
+| No organisation API token, or no service entity ID where one is required | `SRAMNotConfiguredError` | 503. Raised before any request is sent, so an unconfigured deployment never contacts SRAM |
+| SRAM answers 401 or 403 | `OrganisationTokenError` | 502. The token is invalid, expired, or lacks rights on the target. Logged as an administrator action item, mirroring `IntrospectionTokenError` |
+| SRAM answers 404 | `CollaborationNotFoundError` | 404. The collaboration, group or invitation does not exist, or is outside this organisation |
+| SRAM answers 409 | `CollaborationConflictError` | 409. For example a duplicate group membership or short name |
+| Transport failure, timeout, unexpected status, or a success response with no body | `SRAMAPIError` | 502. Reported as a SRAM failure, never as a failure of the user's data |
+
+The demo application turns all of these into a page through one exception handler, so no SRAM failure reaches the user as an unhandled server error. Every handler states that nothing was changed, which holds because each route performs a single SRAM call. The one exception is provisioning, described below.
 
 ## Authorization in the application
 
 The organisation API token is an organisation administrator credential that can also delete collaborations. It is held server-side only, is never derived from the session, and is never exposed to a browser. Every route that uses it enforces its own check first.
 
-**Provisioning a collaboration** requires the entitlement named by `COLLABORATION_MANAGER_ENTITLEMENT`, enforced with the existing `require_entitlement` dependency. If the setting is unset the routes return 404 and the user interface omits the section, so an unconfigured deployment cannot provision.
+**Provisioning a collaboration** requires the entitlement named by `COLLABORATION_MANAGER_ENTITLEMENT`. A user without it gets 403 and the access denied page. If the setting is unset nobody holds it, the provisioning controls are not rendered, and an unconfigured deployment therefore cannot provision at all.
 
 **Viewing a collaboration's members** requires that the requesting user is a member of that collaboration. Membership is read from the user's own `eduperson_entitlement` claim: a collaboration whose `global_urn` is `uniharderwijk:cumulusgrp` corresponds to the entitlement `urn:mace:surf.nl:sram:group:uniharderwijk:cumulusgrp`. The application matches on that value and never lists a collaboration the user does not belong to.
 
@@ -152,7 +156,7 @@ Actions on the detail page:
 | Table | Actions |
 |-------|---------|
 | Members | Invite by email with intended role, message and expiry dates; promote to admin; demote to member; remove member |
-| Invitations | Resend; change intended role or expiry; withdraw |
+| Invitations | Resend; change intended role; withdraw. SRAM's invitation update accepts only the role and the target groups, so an invitation's expiry cannot be changed after it is sent |
 | Groups | Create group; rename or re-describe a group; delete group; add a member to a group; remove a member from a group |
 | Services | Connect this service; disconnect this service |
 | Collaboration | Delete collaboration |
@@ -183,7 +187,7 @@ Each action states the SRAM call it performs, as method and path, next to the co
 
 Removing a member, deleting a group, disconnecting a service and deleting a collaboration require an explicit confirmation step. Deleting a collaboration is offered only to holders of the manager entitlement.
 
-Controls whose configuration is missing are shown disabled with the reason, rather than hidden, so the demo makes the credential requirements visible.
+Two different reasons hide a control, and they read differently on the page. Where a **credential is missing**, the section is replaced by a note naming the environment variable to set, so the demo makes the credential requirements visible. Where the **user lacks the authority**, the control is simply absent, because naming a capability the viewer cannot have adds nothing.
 
 ## Testing
 

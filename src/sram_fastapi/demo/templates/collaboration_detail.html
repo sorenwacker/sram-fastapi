@@ -137,7 +137,8 @@
                 <td class="actions">
                     <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/update">
                         <input type="text" name="name" placeholder="new name" required>
-                        <button type="submit">Rename</button>
+                        <input type="text" name="description" placeholder="new description">
+                        <button type="submit">Update</button>
                     </form>
                     <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/members">
                         <select name="uid">

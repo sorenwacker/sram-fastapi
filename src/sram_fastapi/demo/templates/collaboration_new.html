@@ -44,6 +44,7 @@
         <label>Website URL<input type="url" name="website_url"></label>
         <label>Administrators<input type="text" name="administrators" required placeholder="comma separated email addresses"></label>
         <label>Invitation message<textarea name="message" rows="2"></textarea></label>
+        <label>Expiry date<input type="date" name="expiry_date"></label>
         <label>Tags<input type="text" name="tags" placeholder="comma separated"></label>
         <label>Units<input type="text" name="units" placeholder="comma separated"></label>
         <label class="checkbox"><input type="checkbox" name="disable_join_requests"> Disable join requests</label>
@@ -62,7 +63,7 @@
     .section-intro { color: #718096; margin-top: 0.5rem; }
     form label { display: block; margin-bottom: 0.75rem; color: #4a5568; font-size: 0.9rem; }
     form label.checkbox { display: flex; align-items: center; gap: 0.5rem; }
-    form input[type="text"], form input[type="url"], form textarea {
+    form input[type="text"], form input[type="url"], form input[type="date"], form textarea {
         display: block; width: 100%; margin-top: 0.25rem; padding: 0.5rem;
         border: 1px solid #cbd5e0; border-radius: 4px; font-size: 0.95rem;
     }
