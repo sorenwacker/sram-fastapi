@@ -2,9 +2,6 @@
 
 How the application provisions collaborations in SRAM, invites users, manages admins and members, and shows a collaboration's member list.
 
-!!! note "Status"
-    This page specifies behaviour that is not implemented yet. It describes the intended module, configuration, authorization rules and user interface, and is the reference against which the tests and the implementation are written.
-
 ## Scope
 
 SRAM exposes a public organisation API that supports creating collaborations, inviting users, changing roles, removing members, and reading a collaboration with its full membership list. The application uses that API to offer collaboration management to users who are authorised for it, instead of sending them to the SRAM portal.
@@ -97,17 +94,25 @@ Methods:
 | `list_members(identifier)` | `GET /api/collaborations/v1/{id}`, returning its memberships |
 | `set_member_role(identifier, uid, role)` | `PUT /api/collaborations/v1/{id}/members` |
 | `remove_member(identifier, uid)` | `DELETE /api/collaborations/v1/{id}/members/{uid}` |
+| `disconnect_service(identifier, service_entity_id=None)` | `PUT /api/collaborations_services/v1/disconnect_collaboration_service/{id}` |
 | `invite(identifier, emails, role, ...)` | `PUT /api/invitations/v1/collaboration_invites` |
 | `list_open_invitations(identifier)` | `GET /api/invitations/v1/invitations/{id}` |
 | `resend_invitation(external_identifier)` | `PUT /api/invitations/v1/resend/{external_identifier}` |
+| `update_invitation(external_identifier, role=None, groups=None)` | `PATCH /api/invitations/v1/update/{external_identifier}` |
 | `withdraw_invitation(external_identifier)` | `DELETE /api/invitations/v1/{external_identifier}` |
+| `create_group(identifier, name, short_name, ...)` | `POST /api/groups/v1` |
+| `update_group(group_identifier, ...)` | `PUT /api/groups/v1/{group_identifier}` |
+| `delete_group(group_identifier)` | `DELETE /api/groups/v1/{group_identifier}` |
+| `add_group_member(group_identifier, uid)` | `POST /api/groups/v1/{group_identifier}` |
+| `remove_group_member(group_identifier, uid)` | `DELETE /api/groups/v1/{group_identifier}/members/{uid}` |
 
-Dataclasses `Collaboration`, `Membership`, `Invitation` and `CollaborationCreate` mirror the SRAM schemas and expose only the fields the application uses. `Membership` carries `uid`, `role`, `status`, `expiry_date`, `name` and `email`; the last two come from the nested `user` object.
+Dataclasses `Organisation`, `Collaboration`, `Membership`, `Group`, `Service`, `Invitation` and `CollaborationCreate` mirror the SRAM schemas and expose only the fields the application uses. `Membership` carries `uid`, `role`, `status`, `expiry_date`, `name` and `email`; the last two come from the nested `user` object.
 
 ### Errors
 
 | Condition | Exception | Handling |
 |-----------|-----------|----------|
+| No organisation API token, or no service entity ID where one is required | `SRAMNotConfiguredError` | Raised before any request is sent, so an unconfigured deployment never contacts SRAM |
 | SRAM answers 401 or 403 | `OrganisationTokenError` | The organisation API token is invalid, expired, or lacks rights on the target. Logged as an administrator action item, shown to the user as a configuration problem, mirroring `IntrospectionTokenError` |
 | SRAM answers 404 | `CollaborationNotFoundError` | The collaboration or invitation does not exist, or is outside this organisation |
 | SRAM answers 409 | `CollaborationConflictError` | For example a duplicate group membership or short name |
@@ -152,6 +157,28 @@ Actions on the detail page:
 | Services | Connect this service; disconnect this service |
 | Collaboration | Delete collaboration |
 
+Every action is a form post, so no action can be triggered by following a link:
+
+| Route | Action |
+|-------|--------|
+| `POST /collaborations/new` | Create a collaboration and connect this service |
+| `POST /collaborations/{id}/delete` | Delete the collaboration |
+| `POST /collaborations/{id}/invite` | Invite email addresses with an intended role |
+| `POST /collaborations/{id}/members/role` | Promote or demote a member |
+| `POST /collaborations/{id}/members/remove` | Remove a member |
+| `POST /collaborations/{id}/invitations/{invitation_id}/resend` | Resend an invitation |
+| `POST /collaborations/{id}/invitations/{invitation_id}/role` | Change the intended role of an invitation |
+| `POST /collaborations/{id}/invitations/{invitation_id}/withdraw` | Withdraw an invitation |
+| `POST /collaborations/{id}/groups` | Create a group |
+| `POST /collaborations/{id}/groups/{group_id}/update` | Rename or re-describe a group |
+| `POST /collaborations/{id}/groups/{group_id}/delete` | Delete a group |
+| `POST /collaborations/{id}/groups/{group_id}/members` | Add a member to a group |
+| `POST /collaborations/{id}/groups/{group_id}/members/remove` | Remove a member from a group |
+| `POST /collaborations/{id}/services/connect` | Connect this service |
+| `POST /collaborations/{id}/services/disconnect` | Disconnect this service |
+
+Pending invitations and the management controls are shown to collaboration admins and managers only; an ordinary member sees the member, group and service tables without them.
+
 Each action states the SRAM call it performs, as method and path, next to the control. The application is a reference implementation, so showing which endpoint backs each control is part of what it demonstrates.
 
 Removing a member, deleting a group, disconnecting a service and deleting a collaboration require an explicit confirmation step. Deleting a collaboration is offered only to holders of the manager entitlement.
@@ -164,7 +191,7 @@ Tests use `pytest` with `httpx` transports mocked at the client boundary, so no 
 
 Route tests cover the authorization matrix explicitly: anonymous, authenticated non-member, member, collaboration admin, and manager-entitlement holder, against every route. The privacy rules get their own tests, one per disclosure flag and role combination.
 
-Behaviour when configuration is absent is covered as well: with `SRAM_ORGANISATION_API_TOKEN` unset, the pages report the feature as unconfigured rather than raising.
+Behaviour when configuration is absent is covered as well: with `SRAM_ORGANISATION_API_TOKEN` unset, the pages report the feature as unconfigured rather than raising, and with `SRAM_SERVICE_ENTITY_ID` unset, provisioning is refused rather than leaving an unreachable collaboration behind.
 
 The identity matching described above is the one thing tests cannot settle, since it depends on what SRAM issues. It is verified manually once in the acceptance environment at `https://acc.sram.surf.nl`, and the outcome is recorded here.
 
