@@ -135,6 +135,14 @@ The organisation API token is an organisation administrator credential that can 
 !!! note "Two paths on purpose"
     Matching the session user to a membership record depends on the OIDC `sub` claim being equal to the `user.uid` returned by the organisation API. The observed formats differ: the login proxy issues identifiers ending in `@sram.surf.nl`, while the API examples end in `@sram.eduteams.org`. Because that equality is not guaranteed, holding `COLLABORATION_MANAGER_ENTITLEMENT` is accepted as an independent path to the same routes. Both paths are enforced and tested, so the feature is usable whether or not the identifiers line up, and neither path opens access to a user who has neither. The actual uid formats are recorded here once observed in the acceptance environment.
 
+### Keeping an authorized request inside its collaboration
+
+Authorization is granted per collaboration, but SRAM's group and invitation endpoints address their object directly, and the organisation API token is valid for every collaboration in the organisation. Two rules keep the two in step.
+
+A group or invitation named in a request must belong to the collaboration the caller was authorized for. The group is checked against the collaboration's own group list, the invitation against its open invitations; anything else is reported as not found, which also avoids confirming that the object exists elsewhere.
+
+Every value placed in a SRAM API path is percent-encoded, and a value consisting only of dots is refused outright. Identifiers and uids arrive from URL paths and form fields, and an unencoded `/` or `..` would otherwise let a request resolve to a different collaboration than the one that was authorized.
+
 ## Privacy
 
 A collaboration carries `disclose_member_information` and `disclose_email_information`. These govern what SRAM shows members in its own portal. They are **not** applied to the organisation API response: the token sees every member and every email address regardless of the flags.
@@ -185,7 +193,7 @@ Pending invitations and the management controls are shown to collaboration admin
 
 Each action states the SRAM call it performs, as method and path, next to the control. The application is a reference implementation, so showing which endpoint backs each control is part of what it demonstrates.
 
-Removing a member, deleting a group, disconnecting a service and deleting a collaboration require an explicit confirmation step. Deleting a collaboration is offered only to holders of the manager entitlement.
+Removing a member, deleting a group, disconnecting a service and deleting a collaboration require an explicit confirmation step. The confirmation text is carried in a `data-confirm` attribute and read by one script that binds a submit handler: a browser decodes an attribute value before its content would reach the JavaScript parser, so a name or email interpolated into an inline `onsubmit` handler could break out of the string literal despite HTML escaping. Deleting a collaboration is offered only to holders of the manager entitlement.
 
 Two different reasons hide a control, and they read differently on the page. Where a **credential is missing**, the section is replaced by a note naming the environment variable to set, so the demo makes the credential requirements visible. Where the **user lacks the authority**, the control is simply absent, because naming a capability the viewer cannot have adds nothing.
 

@@ -1,5 +1,7 @@
 """Tests for the collaboration management pages of the demo application."""
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -25,6 +27,9 @@ CO_IDENTIFIER = "301ee8e6-b5d1-40b5-a27e-47611f803371"
 OTHER_IDENTIFIER = "9f1c0000-0000-0000-0000-000000000002"
 
 
+PAYLOAD_NAME = "'); alert(1); //"
+
+
 def collaboration() -> Collaboration:
     """Build a collaboration with two members, a group and a connected service."""
     return Collaboration(
@@ -48,7 +53,7 @@ def collaboration() -> Collaboration:
                 uid="member-uid@sram.eduteams.org",
                 role="member",
                 status="active",
-                name="Researcher Doe",
+                name=PAYLOAD_NAME,
                 email="rdoe@uniharderwijk.nl",
             ),
         ],
@@ -813,3 +818,88 @@ class TestFailureHandling:
         )
         assert response.status_code == 502
         assert fake.deleted == [CO_IDENTIFIER]
+
+
+class TestObjectOwnership:
+    """Tests that group and invitation actions stay inside the authorized collaboration."""
+
+    def test_group_of_another_collaboration_is_refused(self, settings: Settings):
+        """A group that does not belong to this collaboration cannot be deleted."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(f"/collaborations/{CO_IDENTIFIER}/groups/foreign-group/delete")
+        assert response.status_code == 404
+        assert fake.groups_deleted == []
+
+    def test_foreign_group_membership_change_is_refused(self, settings: Settings):
+        """A member cannot be added to a group of another collaboration."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/groups/foreign-group/members",
+            data={"uid": "member-uid@sram.eduteams.org"},
+        )
+        assert response.status_code == 404
+        assert fake.group_members == []
+
+    def test_foreign_group_update_is_refused(self, settings: Settings):
+        """A group of another collaboration cannot be renamed."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/groups/foreign-group/update",
+            data={"name": "Renamed"},
+        )
+        assert response.status_code == 404
+        assert fake.groups_updated == []
+
+    def test_own_group_is_still_accepted(self, settings: Settings):
+        """A group of this collaboration is still managed normally."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/groups/group-1/delete", follow_redirects=False
+        )
+        assert response.status_code == 303
+        assert fake.groups_deleted == ["group-1"]
+
+    def test_foreign_invitation_is_refused(self, settings: Settings):
+        """An invitation that is not open in this collaboration cannot be withdrawn."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/invitations/foreign-invitation/withdraw"
+        )
+        assert response.status_code == 404
+        assert fake.invitation_actions == []
+
+    def test_own_invitation_is_still_accepted(self, settings: Settings):
+        """An invitation of this collaboration is still managed normally."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/invitations/inv-1/resend", follow_redirects=False
+        )
+        assert response.status_code == 303
+        assert fake.invitation_actions == [("resend", "inv-1")]
+
+
+class TestConfirmationMarkup:
+    """Tests that confirmation prompts cannot become an injection point."""
+
+    def test_no_inline_event_handlers(self, settings: Settings):
+        """Confirmations are wired up from a script, not from inline handlers."""
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), FakeClient())
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert re.search(r'\son[a-z]+="', response.text) is None
+        assert "data-confirm=" in response.text
+
+    def test_member_name_never_reaches_a_script_context(self, settings: Settings):
+        """A member name that looks like code never lands in JavaScript."""
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), FakeClient())
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+
+        assert PAYLOAD_NAME not in response.text
+        scripts = re.findall(r"<script>(.*?)</script>", response.text, re.DOTALL)
+        assert scripts
+        assert all("alert(1)" not in script for script in scripts)
