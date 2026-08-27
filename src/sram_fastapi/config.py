@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     sram_introspection_token: str | None = None
     sram_introspection_url: str = "https://sram.surf.nl/api/tokens/introspect"
 
+    # SRAM organisation API (collaboration management)
+    sram_api_base_url: str = "https://sram.surf.nl"
+    sram_organisation_api_token: str | None = None
+    sram_service_entity_id: str | None = None
+    collaboration_manager_entitlement: str | None = None
+
     # Session settings
     session_cookie_name: str = "session"
     session_max_age: int = 3600  # 1 hour

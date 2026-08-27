@@ -13,6 +13,7 @@ from sram_fastapi.config import Settings, get_settings
 from sram_fastapi.demo.routers import (
     create_auth_router,
     create_authorization_router,
+    create_collaborations_router,
     create_pages_router,
 )
 
@@ -67,6 +68,7 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(create_pages_router())
     app.include_router(create_auth_router())
     app.include_router(create_authorization_router())
+    app.include_router(create_collaborations_router())
 
     return app
 

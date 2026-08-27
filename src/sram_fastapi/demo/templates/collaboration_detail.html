@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}{{ collaboration.name }} - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>{{ collaboration.name }}</h1>
+    <p class="section-intro">{{ collaboration.description }}</p>
+    <table>
+        <tbody>
+            <tr><th>Identifier</th><td><code>{{ collaboration.identifier }}</code></td></tr>
+            <tr><th>Short name</th><td><code>{{ collaboration.short_name }}</code></td></tr>
+            <tr><th>Global URN</th><td><code>{{ collaboration.global_urn }}</code></td></tr>
+            <tr><th>Status</th><td>{{ collaboration.status }}</td></tr>
+            <tr>
+                <th>Member names disclosed</th>
+                <td>{{ "yes" if collaboration.disclose_member_information else "no" }}</td>
+            </tr>
+            <tr>
+                <th>Member emails disclosed</th>
+                <td>{{ "yes" if collaboration.disclose_email_information else "no" }}</td>
+            </tr>
+        </tbody>
+    </table>
+    <p class="api-hint">GET /api/collaborations/v1/{{ collaboration.identifier }}</p>
+</div>
+
+<div class="card">
+    <h2>Members</h2>
+    {% if not can_manage %}
+    <p class="section-intro">
+        Details marked "{{ hidden_label }}" are withheld by this collaboration's disclosure settings.
+    </p>
+    {% endif %}
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>SRAM uid</th></tr>
+        </thead>
+        <tbody>
+            {% for member in members %}
+            <tr>
+                <td>{{ member.name }}</td>
+                <td>{{ member.email }}</td>
+                <td>{{ member.role }}</td>
+                <td>{{ member.status }}</td>
+                <td><code>{{ member.uid }}</code></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="color: #a0aec0;">No members</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>Groups</h2>
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Short name</th><th>Members</th></tr>
+        </thead>
+        <tbody>
+            {% for group in collaboration.groups %}
+            <tr>
+                <td>{{ group.name }}</td>
+                <td><code>{{ group.short_name }}</code></td>
+                <td>{{ group.member_uids | length }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" style="color: #a0aec0;">No groups</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>Connected services</h2>
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Entity ID</th></tr>
+        </thead>
+        <tbody>
+            {% for service in collaboration.services %}
+            <tr>
+                <td>{{ service.name }}</td>
+                <td><code>{{ service.entity_id }}</code></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" style="color: #a0aec0;">No services connected</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<p><a href="/collaborations">Back to collaborations</a></p>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .section-intro { color: #718096; margin-top: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    th { color: #4a5568; font-size: 0.85rem; }
+    .api-hint { margin-top: 0.75rem; font-family: monospace; font-size: 0.8rem; color: #a0aec0; }
+</style>
+{% endblock %}
