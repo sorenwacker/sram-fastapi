@@ -13,6 +13,7 @@ deciding who may invoke which method.
 import logging
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal
+from urllib.parse import quote
 
 import httpx
 from fastapi import Depends
@@ -83,6 +84,33 @@ class CollaborationNotFoundError(SRAMAPIError):
 
 class CollaborationConflictError(SRAMAPIError):
     """Raised when SRAM reports a conflicting state, such as a duplicate."""
+
+
+def _segment(value: str) -> str:
+    """Percent-encode a value so it cannot escape its own path segment.
+
+    Identifiers and uids reach this module from URL paths and form fields. Without
+    encoding, a value containing "/" or ".." would re-target the request at another
+    collaboration, group or endpoint, and the organisation API token is authorised for
+    all of them.
+
+    Args:
+        value: The value to place in a single path segment.
+
+    The "@" that separates a SRAM uid from its host is left as it is, since it is a
+    legal path character and keeps uids readable in logs.
+
+    Returns:
+        The value with every path-separating character percent-encoded.
+
+    Raises:
+        SRAMAPIError: If the value consists only of dots, which a URL parser would
+            collapse into a move up the path.
+    """
+    text = str(value)
+    if set(text) == {"."}:
+        raise SRAMAPIError(f"'{text}' is not a usable identifier")
+    return quote(text, safe="@")
 
 
 @dataclass
@@ -355,7 +383,7 @@ class SRAMOrganisationClient:
         Args:
             identifier: The collaboration's SRAM identifier.
         """
-        path = f"/api/collaborations/v1/{identifier}"
+        path = f"/api/collaborations/v1/{_segment(identifier)}"
         data = await self._request("GET", path)
         return Collaboration.from_api(self._require_body(data, path))
 
@@ -399,7 +427,7 @@ class SRAMOrganisationClient:
             )
         await self._request(
             "PUT",
-            f"/api/collaborations_services/v1/connect_collaboration_service/{identifier}",
+            f"/api/collaborations_services/v1/connect_collaboration_service/{_segment(identifier)}",
             json={"service_entity_id": entity_id},
         )
 
@@ -424,7 +452,7 @@ class SRAMOrganisationClient:
             )
         await self._request(
             "PUT",
-            f"/api/collaborations_services/v1/disconnect_collaboration_service/{identifier}",
+            f"/api/collaborations_services/v1/disconnect_collaboration_service/{_segment(identifier)}",
             json={"service_entity_id": entity_id},
         )
 
@@ -434,7 +462,7 @@ class SRAMOrganisationClient:
         Args:
             identifier: The collaboration's SRAM identifier.
         """
-        await self._request("DELETE", f"/api/collaborations/v1/{identifier}")
+        await self._request("DELETE", f"/api/collaborations/v1/{_segment(identifier)}")
 
     async def invite(
         self,
@@ -484,7 +512,7 @@ class SRAMOrganisationClient:
         Args:
             identifier: The collaboration's SRAM identifier.
         """
-        data = await self._request("GET", f"/api/invitations/v1/invitations/{identifier}")
+        data = await self._request("GET", f"/api/invitations/v1/invitations/{_segment(identifier)}")
         return [Invitation.from_open_invitation(item) for item in data or []]
 
     async def resend_invitation(self, external_identifier: str) -> None:
@@ -493,7 +521,7 @@ class SRAMOrganisationClient:
         Args:
             external_identifier: The invitation's external identifier.
         """
-        await self._request("PUT", f"/api/invitations/v1/resend/{external_identifier}")
+        await self._request("PUT", f"/api/invitations/v1/resend/{_segment(external_identifier)}")
 
     async def update_invitation(
         self,
@@ -514,7 +542,7 @@ class SRAMOrganisationClient:
         if groups is not None:
             payload["groups"] = groups
         await self._request(
-            "PATCH", f"/api/invitations/v1/update/{external_identifier}", json=payload
+            "PATCH", f"/api/invitations/v1/update/{_segment(external_identifier)}", json=payload
         )
 
     async def withdraw_invitation(self, external_identifier: str) -> None:
@@ -523,7 +551,7 @@ class SRAMOrganisationClient:
         Args:
             external_identifier: The invitation's external identifier.
         """
-        await self._request("DELETE", f"/api/invitations/v1/{external_identifier}")
+        await self._request("DELETE", f"/api/invitations/v1/{_segment(external_identifier)}")
 
     async def set_member_role(self, identifier: str, uid: str, role: Role) -> None:
         """Set a member's role in a collaboration.
@@ -535,7 +563,7 @@ class SRAMOrganisationClient:
         """
         await self._request(
             "PUT",
-            f"/api/collaborations/v1/{identifier}/members",
+            f"/api/collaborations/v1/{_segment(identifier)}/members",
             json={"uid": uid, "role": role},
         )
 
@@ -546,7 +574,9 @@ class SRAMOrganisationClient:
             identifier: The collaboration's SRAM identifier.
             uid: The member's SRAM uid.
         """
-        await self._request("DELETE", f"/api/collaborations/v1/{identifier}/members/{uid}")
+        await self._request(
+            "DELETE", f"/api/collaborations/v1/{_segment(identifier)}/members/{_segment(uid)}"
+        )
 
     async def create_group(
         self,
@@ -604,7 +634,7 @@ class SRAMOrganisationClient:
             payload["description"] = description
         if auto_provision_members is not None:
             payload["auto_provision_members"] = auto_provision_members
-        path = f"/api/groups/v1/{group_identifier}"
+        path = f"/api/groups/v1/{_segment(group_identifier)}"
         data = await self._request("PUT", path, json=payload)
         return Group.from_api(self._require_body(data, path))
 
@@ -614,7 +644,7 @@ class SRAMOrganisationClient:
         Args:
             group_identifier: The group's SRAM identifier.
         """
-        await self._request("DELETE", f"/api/groups/v1/{group_identifier}")
+        await self._request("DELETE", f"/api/groups/v1/{_segment(group_identifier)}")
 
     async def add_group_member(self, group_identifier: str, uid: str) -> None:
         """Add a collaboration member to a group.
@@ -623,7 +653,9 @@ class SRAMOrganisationClient:
             group_identifier: The group's SRAM identifier.
             uid: The member's SRAM uid.
         """
-        await self._request("POST", f"/api/groups/v1/{group_identifier}", json={"uid": uid})
+        await self._request(
+            "POST", f"/api/groups/v1/{_segment(group_identifier)}", json={"uid": uid}
+        )
 
     async def remove_group_member(self, group_identifier: str, uid: str) -> None:
         """Remove a member from a group.
@@ -632,7 +664,9 @@ class SRAMOrganisationClient:
             group_identifier: The group's SRAM identifier.
             uid: The member's SRAM uid.
         """
-        await self._request("DELETE", f"/api/groups/v1/{group_identifier}/members/{uid}")
+        await self._request(
+            "DELETE", f"/api/groups/v1/{_segment(group_identifier)}/members/{_segment(uid)}"
+        )
 
     async def _request(self, method: str, path: str, json: dict | None = None) -> Any:
         """Send a request to the SRAM organisation API.

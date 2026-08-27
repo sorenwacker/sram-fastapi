@@ -477,7 +477,7 @@ class TestMembership:
 
         def handler(request: httpx.Request) -> httpx.Response:
             seen["method"] = request.method
-            seen["path"] = request.url.path
+            seen["path"] = request.url.raw_path.decode()
             return httpx.Response(204)
 
         await make_client(handler).withdraw_invitation("inv-1")
@@ -507,7 +507,7 @@ class TestMembership:
 
         def handler(request: httpx.Request) -> httpx.Response:
             seen["method"] = request.method
-            seen["path"] = request.url.path
+            seen["path"] = request.url.raw_path.decode()
             return httpx.Response(204)
 
         await make_client(handler).remove_member("co-1", "member-uid@sram.eduteams.org")
@@ -607,7 +607,7 @@ class TestGroups:
 
         def handler(request: httpx.Request) -> httpx.Response:
             seen["method"] = request.method
-            seen["path"] = request.url.path
+            seen["path"] = request.url.raw_path.decode()
             return httpx.Response(204)
 
         await make_client(handler).remove_group_member("group-1", "member-uid@sram.eduteams.org")
@@ -672,3 +672,70 @@ class TestResponseHandling:
         )
 
         assert invitations[0].intended_role == "admin"
+
+
+class TestPathSafety:
+    """Tests that caller-supplied values cannot re-target a request."""
+
+    async def test_uid_cannot_escape_its_path_segment(self):
+        """A uid containing traversal stays inside the collaboration it was sent for."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.raw_path.decode()
+            return httpx.Response(204)
+
+        await make_client(handler).remove_member(
+            "co-1", "../../co-2/members/victim-uid@sram.eduteams.org"
+        )
+
+        assert seen["path"].startswith("/api/collaborations/v1/co-1/members/")
+        assert "/co-2/" not in seen["path"]
+
+    async def test_group_uid_cannot_escape_its_path_segment(self):
+        """A group member uid containing traversal stays inside its group."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.raw_path.decode()
+            return httpx.Response(204)
+
+        await make_client(handler).remove_group_member("group-1", "../../group-2/members/victim")
+
+        assert seen["path"].startswith("/api/groups/v1/group-1/members/")
+        assert "/group-2/" not in seen["path"]
+
+    async def test_identifier_cannot_escape_its_path_segment(self):
+        """A collaboration identifier containing traversal cannot reach another endpoint."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.raw_path.decode()
+            return httpx.Response(200, json=COLLABORATION_DETAIL)
+
+        await make_client(handler).get_collaboration("../../organisations/v1")
+
+        assert seen["path"].startswith("/api/collaborations/v1/")
+        assert not seen["path"].endswith("/organisations/v1")
+
+    async def test_bare_dot_segments_are_refused(self):
+        """A value that is only dots cannot collapse a path segment."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise AssertionError("no request should be sent")
+
+        with pytest.raises(SRAMAPIError):
+            await make_client(handler).remove_member("co-1", "..")
+
+    async def test_invitation_identifier_cannot_escape_its_path_segment(self):
+        """An invitation identifier containing traversal cannot reach another endpoint."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["path"] = request.url.raw_path.decode()
+            return httpx.Response(204)
+
+        await make_client(handler).withdraw_invitation("../collaborations/v1/co-2")
+
+        assert seen["path"].startswith("/api/invitations/v1/")
+        assert "/collaborations/" not in seen["path"]
