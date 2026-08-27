@@ -636,3 +636,39 @@ class TestServiceConnection:
             "/api/collaborations_services/v1/disconnect_collaboration_service/co-1"
         )
         assert seen["body"] == {"service_entity_id": "https://service.cloud.example.com"}
+
+
+class TestResponseHandling:
+    """Tests for responses that carry no usable body."""
+
+    async def test_empty_body_where_data_is_expected(self):
+        """A success response without a body is reported, not parsed into an empty object."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(201)
+
+        with pytest.raises(SRAMAPIError):
+            await make_client(handler).create_collaboration(
+                CollaborationCreate(
+                    name="Cumulus research group",
+                    description="Cumulus research group.",
+                    administrators=["jdoe@uniharderwijk.nl"],
+                )
+            )
+
+    async def test_invitations_carry_the_requested_role(self):
+        """Invitations returned by a bulk invite report the role that was requested."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                201,
+                json=[
+                    {"email": "rdoe@uniharderwijk.nl", "invitation_id": "inv-1", "status": "open"}
+                ],
+            )
+
+        invitations = await make_client(handler).invite(
+            "co-1", emails=["rdoe@uniharderwijk.nl"], role="admin"
+        )
+
+        assert invitations[0].intended_role == "admin"

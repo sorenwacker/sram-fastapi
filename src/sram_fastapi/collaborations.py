@@ -227,11 +227,20 @@ class Invitation:
         )
 
     @classmethod
-    def from_created(cls, data: dict) -> "Invitation":
-        """Create an invitation from the response to a bulk invite."""
+    def from_created(cls, data: dict, intended_role: str = "member") -> "Invitation":
+        """Create an invitation from the response to a bulk invite.
+
+        The response repeats neither the role nor the collaboration, so the role that was
+        requested is carried over by the caller.
+
+        Args:
+            data: One entry of the bulk invite response.
+            intended_role: The role that was requested for the invitees.
+        """
         return cls(
             identifier=data.get("invitation_id", ""),
             email=data.get("email", ""),
+            intended_role=intended_role,
             status=data.get("status"),
             expiry_date=data.get("invitation_expiry_date"),
         )
@@ -338,7 +347,7 @@ class SRAMOrganisationClient:
     async def get_organisation(self) -> Organisation:
         """Get the organisation the API token belongs to, with its collaborations."""
         data = await self._request("GET", "/api/organisations/v1")
-        return Organisation.from_api(data)
+        return Organisation.from_api(self._require_body(data, "/api/organisations/v1"))
 
     async def get_collaboration(self, identifier: str) -> Collaboration:
         """Get a collaboration with its memberships, groups and connected services.
@@ -346,8 +355,9 @@ class SRAMOrganisationClient:
         Args:
             identifier: The collaboration's SRAM identifier.
         """
-        data = await self._request("GET", f"/api/collaborations/v1/{identifier}")
-        return Collaboration.from_api(data)
+        path = f"/api/collaborations/v1/{identifier}"
+        data = await self._request("GET", path)
+        return Collaboration.from_api(self._require_body(data, path))
 
     async def list_members(self, identifier: str) -> list[Membership]:
         """List the members of a collaboration.
@@ -368,7 +378,7 @@ class SRAMOrganisationClient:
             spec: The attributes of the collaboration to create.
         """
         data = await self._request("POST", "/api/collaborations/v1", json=spec.to_payload())
-        return Collaboration.from_api(data)
+        return Collaboration.from_api(self._require_body(data, "/api/collaborations/v1"))
 
     async def connect_service(self, identifier: str, service_entity_id: str | None = None) -> None:
         """Connect a service to a collaboration.
@@ -466,7 +476,7 @@ class SRAMOrganisationClient:
         payload.update({key: value for key, value in optional.items() if value})
 
         data = await self._request("PUT", "/api/invitations/v1/collaboration_invites", json=payload)
-        return [Invitation.from_created(item) for item in data or []]
+        return [Invitation.from_created(item, intended_role=role) for item in data or []]
 
     async def list_open_invitations(self, identifier: str) -> list[Invitation]:
         """List the open invitations of a collaboration.
@@ -567,7 +577,7 @@ class SRAMOrganisationClient:
         if description:
             payload["description"] = description
         data = await self._request("POST", "/api/groups/v1", json=payload)
-        return Group.from_api(data)
+        return Group.from_api(self._require_body(data, "/api/groups/v1"))
 
     async def update_group(
         self,
@@ -594,8 +604,9 @@ class SRAMOrganisationClient:
             payload["description"] = description
         if auto_provision_members is not None:
             payload["auto_provision_members"] = auto_provision_members
-        data = await self._request("PUT", f"/api/groups/v1/{group_identifier}", json=payload)
-        return Group.from_api(data)
+        path = f"/api/groups/v1/{group_identifier}"
+        data = await self._request("PUT", path, json=payload)
+        return Group.from_api(self._require_body(data, path))
 
     async def delete_group(self, group_identifier: str) -> None:
         """Delete a group.
@@ -664,6 +675,21 @@ class SRAMOrganisationClient:
         if response.status_code == 204 or not response.content:
             return None
         return response.json()
+
+    @staticmethod
+    def _require_body(data: Any, path: str) -> dict:
+        """Return the response body, or raise when SRAM sent none.
+
+        Args:
+            data: The parsed response body.
+            path: Request path, used in the error message.
+
+        Raises:
+            SRAMAPIError: If the response carried no object.
+        """
+        if not isinstance(data, dict):
+            raise SRAMAPIError(f"SRAM returned no data for {path}")
+        return data
 
     @staticmethod
     def _raise_for_status(response: httpx.Response, method: str, path: str) -> None:
