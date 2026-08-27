@@ -11,7 +11,9 @@ Access rules:
       members see only what the collaboration's disclosure settings allow.
 """
 
+import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -31,6 +33,8 @@ from sram_fastapi.collaborations import (
     get_organisation_client,
 )
 from sram_fastapi.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
@@ -163,6 +167,29 @@ async def _managed_collaboration(
     )
 
 
+def _epoch_seconds(value: str | None) -> int | None:
+    """Convert a date from a form field into epoch seconds.
+
+    Args:
+        value: A date in ISO format, or an empty value.
+
+    Returns:
+        The date as epoch seconds at midnight UTC, or None when no date was given.
+
+    Raises:
+        HTTPException: If the value is not a date SRAM can use.
+    """
+    if not value:
+        return None
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=UTC)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail=f"'{value}' is not a date in YYYY-MM-DD format."
+        ) from exc
+    return int(parsed.timestamp())
+
+
 def _split_list(value: str | None) -> list[str]:
     """Split a comma or newline separated form field into a list of values."""
     if not value:
@@ -192,7 +219,7 @@ def create_collaborations_router() -> APIRouter:
         Managers additionally see every collaboration of the organisation.
         """
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
 
         is_manager = _is_manager(user, settings)
         urns = collaboration_urns(user.eduperson_entitlement)
@@ -206,23 +233,17 @@ def create_collaborations_router() -> APIRouter:
             "error": None,
         }
 
-        status_code = 200
         if client.configured:
-            try:
-                organisation = await client.get_organisation()
-                context["collaborations"] = [
-                    c for c in organisation.collaborations if c.global_urn in urns
-                ]
-                if is_manager:
-                    context["organisation"] = organisation
-            except SRAMAPIError as exc:
-                context["error"] = str(exc)
-                status_code = 502
+            organisation = await client.get_organisation()
+            context["collaborations"] = [
+                c for c in organisation.collaborations if c.global_urn in urns
+            ]
+            if is_manager:
+                context["organisation"] = organisation
 
         return templates.TemplateResponse(
             request=request,
             name="collaborations.html",
-            status_code=status_code,
             context=context,
         )
 
@@ -235,7 +256,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Show the form for provisioning a collaboration."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         _require_manager(user, settings)
 
         return templates.TemplateResponse(
@@ -263,13 +284,14 @@ def create_collaborations_router() -> APIRouter:
         message: Annotated[str, Form()] = "",
         tags: Annotated[str, Form()] = "",
         units: Annotated[str, Form()] = "",
+        expiry_date: Annotated[str, Form()] = "",
         disable_join_requests: Annotated[bool, Form()] = False,
         disclose_member_information: Annotated[bool, Form()] = False,
         disclose_email_information: Annotated[bool, Form()] = False,
     ) -> Response:
         """Create a collaboration and connect this service to it."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         _require_manager(user, settings)
 
         if not settings.sram_service_entity_id:
@@ -281,6 +303,7 @@ def create_collaborations_router() -> APIRouter:
                 ),
             )
 
+        expiry = _epoch_seconds(expiry_date)
         spec = CollaborationCreate(
             name=name,
             description=description,
@@ -290,26 +313,23 @@ def create_collaborations_router() -> APIRouter:
             message=message or None,
             tags=_split_list(tags),
             units=_split_list(units),
+            expiry_date=expiry,
             disable_join_requests=disable_join_requests,
             disclose_member_information=disclose_member_information,
             disclose_email_information=disclose_email_information,
         )
 
+        collaboration = await client.create_collaboration(spec)
         try:
-            collaboration = await client.create_collaboration(spec)
             await client.connect_service(collaboration.identifier)
-        except SRAMAPIError as exc:
-            return templates.TemplateResponse(
-                request=request,
-                name="collaboration_new.html",
-                status_code=502,
-                context={
-                    "user": user,
-                    "configured": client.configured,
-                    "service_entity_id": settings.sram_service_entity_id,
-                    "error": str(exc),
-                },
+        except SRAMAPIError:
+            logger.error(
+                "Could not connect this service to the new collaboration %s; "
+                "removing it again so no unreachable collaboration is left behind.",
+                collaboration.identifier,
             )
+            await client.delete_collaboration(collaboration.identifier)
+            raise
 
         return RedirectResponse(f"/collaborations/{collaboration.identifier}", status_code=303)
 
@@ -322,7 +342,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Delete a collaboration and return to the overview."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         _require_manager(user, settings)
 
         await client.delete_collaboration(identifier)
@@ -340,7 +360,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Invite users to the collaboration by email."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.invite(
@@ -362,7 +382,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Promote a member to admin, or demote an admin to member."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.set_member_role(identifier, uid, role)
@@ -378,7 +398,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Remove a member from the collaboration."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.remove_member(identifier, uid)
@@ -394,7 +414,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Send an open invitation again."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.resend_invitation(invitation_id)
@@ -411,7 +431,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Change the role an invitee will get on acceptance."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.update_invitation(invitation_id, role=role)
@@ -427,7 +447,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Withdraw an open invitation."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.withdraw_invitation(invitation_id)
@@ -446,7 +466,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Create a group inside the collaboration."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.create_group(
@@ -470,7 +490,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Change the name or description of a group."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.update_group(
@@ -488,7 +508,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Delete a group."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.delete_group(group_identifier)
@@ -505,7 +525,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Add a collaboration member to a group."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.add_group_member(group_identifier, uid)
@@ -522,7 +542,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Remove a member from a group."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.remove_group_member(group_identifier, uid)
@@ -537,7 +557,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Connect this service to the collaboration."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.connect_service(identifier)
@@ -552,7 +572,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Disconnect this service from the collaboration."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
 
         await client.disconnect_service(identifier)
@@ -568,7 +588,7 @@ def create_collaborations_router() -> APIRouter:
     ) -> Response:
         """Show one collaboration with its members, groups and connected services."""
         if user is None:
-            return RedirectResponse("/auth/login")
+            return RedirectResponse("/auth/login", status_code=303)
 
         if not client.configured:
             return templates.TemplateResponse(
@@ -585,23 +605,7 @@ def create_collaborations_router() -> APIRouter:
                 },
             )
 
-        try:
-            collaboration = await client.get_collaboration(identifier)
-        except SRAMAPIError as exc:
-            return templates.TemplateResponse(
-                request=request,
-                name="collaborations.html",
-                status_code=502,
-                context={
-                    "user": user,
-                    "configured": True,
-                    "is_manager": _is_manager(user, settings),
-                    "member_urns": sorted(collaboration_urns(user.eduperson_entitlement)),
-                    "collaborations": [],
-                    "organisation": None,
-                    "error": str(exc),
-                },
-            )
+        collaboration = await client.get_collaboration(identifier)
 
         _require_access(user, collaboration, settings)
 

@@ -7,12 +7,14 @@ from sram_fastapi.auth import User, get_optional_user
 from sram_fastapi.collaborations import (
     Collaboration,
     CollaborationCreate,
+    CollaborationNotFoundError,
     Group,
     Invitation,
     Membership,
     Organisation,
     OrganisationTokenError,
     Service,
+    SRAMAPIError,
     get_organisation_client,
 )
 from sram_fastapi.config import Settings
@@ -83,6 +85,9 @@ class FakeClient:
         self.groups_deleted: list[str] = []
         self.group_members: list[tuple[str, str, str]] = []
         self.service_actions: list[tuple[str, str]] = []
+        self.member_error: Exception | None = None
+        self.invitation_list_error: Exception | None = None
+        self.connect_error: Exception | None = None
 
     async def disconnect_service(self, identifier: str) -> None:
         """Record a service disconnection."""
@@ -118,7 +123,9 @@ class FakeClient:
         self.group_members.append(("remove", group_identifier, uid))
 
     async def list_open_invitations(self, identifier: str) -> list[Invitation]:
-        """Return one open invitation."""
+        """Return one open invitation, or fail when the test asked for a failure."""
+        if self.invitation_list_error:
+            raise self.invitation_list_error
         if self.error:
             raise self.error
         return [
@@ -140,7 +147,9 @@ class FakeClient:
         self.roles.append((identifier, uid, role))
 
     async def remove_member(self, identifier: str, uid: str) -> None:
-        """Record a removal."""
+        """Record a removal, or fail when the test asked for a failure."""
+        if self.member_error:
+            raise self.member_error
         self.removed.append((identifier, uid))
 
     async def resend_invitation(self, external_identifier: str) -> None:
@@ -163,7 +172,9 @@ class FakeClient:
         return collaboration()
 
     async def connect_service(self, identifier: str) -> None:
-        """Record the service connection."""
+        """Record the service connection, or fail when the test asked for a failure."""
+        if self.connect_error:
+            raise self.connect_error
         self.connected.append(identifier)
         self.service_actions.append(("connect", identifier))
 
@@ -233,7 +244,7 @@ class TestCollaborationList:
         """An anonymous visitor is sent to the login flow."""
         http = build_client(settings, None, FakeClient())
         response = http.get("/collaborations", follow_redirects=False)
-        assert response.status_code == 307
+        assert response.status_code == 303
         assert response.headers["location"] == "/auth/login"
 
     def test_lists_only_own_collaborations(self, settings: Settings):
@@ -277,7 +288,7 @@ class TestCollaborationDetail:
         """An anonymous visitor is sent to the login flow."""
         http = build_client(settings, None, FakeClient())
         response = http.get(f"/collaborations/{CO_IDENTIFIER}", follow_redirects=False)
-        assert response.status_code == 307
+        assert response.status_code == 303
 
     def test_non_member_is_refused(self, settings: Settings):
         """A user without the collaboration entitlement cannot open it."""
@@ -372,6 +383,60 @@ class TestProvisioning:
         assert fake.created.disclose_member_information is True
         assert fake.created.disclose_email_information is False
         assert fake.connected == [CO_IDENTIFIER]
+
+    def test_create_accepts_an_expiry_date(self, settings: Settings):
+        """An expiry date on the form reaches SRAM as epoch seconds."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+
+        http.post(
+            "/collaborations/new",
+            data={
+                "name": "Cumulus research group",
+                "description": "Cumulus research group.",
+                "administrators": "jdoe@uniharderwijk.nl",
+                "expiry_date": "2027-01-01",
+            },
+            follow_redirects=False,
+        )
+
+        assert fake.created.expiry_date == 1798761600
+
+    def test_create_without_expiry_date(self, settings: Settings):
+        """An empty expiry date leaves the collaboration without one."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+
+        http.post(
+            "/collaborations/new",
+            data={
+                "name": "Cumulus research group",
+                "description": "Cumulus research group.",
+                "administrators": "jdoe@uniharderwijk.nl",
+                "expiry_date": "",
+            },
+            follow_redirects=False,
+        )
+
+        assert fake.created.expiry_date is None
+
+    def test_create_rejects_a_malformed_expiry_date(self, settings: Settings):
+        """A date SRAM could not use is refused before the request is sent."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+
+        response = http.post(
+            "/collaborations/new",
+            data={
+                "name": "Cumulus research group",
+                "description": "Cumulus research group.",
+                "administrators": "jdoe@uniharderwijk.nl",
+                "expiry_date": "not-a-date",
+            },
+        )
+
+        assert response.status_code == 400
+        assert fake.created is None
 
     def test_create_requires_manager_entitlement(self, settings: Settings):
         """A member without the manager entitlement cannot create a collaboration."""
@@ -679,3 +744,72 @@ class TestServiceConnection:
             ("connect", CO_IDENTIFIER),
             ("disconnect", CO_IDENTIFIER),
         ]
+
+
+class TestFailureHandling:
+    """Tests for anonymous state changes and SRAM failures during management actions."""
+
+    MUTATIONS = [
+        ("/invite", {"emails": "a@b.nl", "role": "member"}),
+        ("/members/role", {"uid": "u", "role": "admin"}),
+        ("/members/remove", {"uid": "u"}),
+        ("/delete", {}),
+        ("/groups", {"name": "g", "short_name": "g"}),
+        ("/services/connect", {}),
+    ]
+
+    @pytest.mark.parametrize("path,data", MUTATIONS)
+    def test_anonymous_post_lands_on_login(self, settings: Settings, path: str, data: dict):
+        """An anonymous state change redirects to login as a GET, not as a repeated POST."""
+        http = build_client(settings, None, FakeClient())
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}{path}", data=data, follow_redirects=False
+        )
+        assert response.status_code == 303
+        assert response.headers["location"] == "/auth/login"
+
+        followed = http.post(
+            f"/collaborations/{CO_IDENTIFIER}{path}", data=data, follow_redirects=True
+        )
+        assert followed.status_code != 405
+
+    def test_sram_failure_during_mutation_is_reported(self, settings: Settings):
+        """A SRAM failure while removing a member is reported, not raised as a server error."""
+        fake = FakeClient()
+        fake.member_error = OrganisationTokenError("token rejected")
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(f"/collaborations/{CO_IDENTIFIER}/members/remove", data={"uid": "u"})
+        assert response.status_code == 502
+        assert "token rejected" in response.text
+
+    def test_missing_collaboration_is_not_found(self, settings: Settings):
+        """An unknown collaboration is reported as not found, not as an upstream failure."""
+        fake = FakeClient(error=CollaborationNotFoundError("no such collaboration"))
+        http = build_client(settings, user_with(MEMBER), fake)
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert response.status_code == 404
+
+    def test_invitation_failure_does_not_break_the_page(self, settings: Settings):
+        """A failure listing invitations is reported instead of raising a server error."""
+        fake = FakeClient()
+        fake.invitation_list_error = SRAMAPIError("invitations unavailable")
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert response.status_code == 502
+        assert "invitations unavailable" in response.text
+
+    def test_failed_connect_rolls_back_the_collaboration(self, settings: Settings):
+        """A collaboration that cannot be connected to this service is removed again."""
+        fake = FakeClient()
+        fake.connect_error = SRAMAPIError("connect failed")
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+        response = http.post(
+            "/collaborations/new",
+            data={
+                "name": "Cumulus research group",
+                "description": "Cumulus research group.",
+                "administrators": "jdoe@uniharderwijk.nl",
+            },
+        )
+        assert response.status_code == 502
+        assert fake.deleted == [CO_IDENTIFIER]
