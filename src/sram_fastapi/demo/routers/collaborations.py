@@ -25,6 +25,7 @@ from sram_fastapi.auth import AuthorizationError, User, get_optional_user
 from sram_fastapi.collaborations import (
     Collaboration,
     CollaborationCreate,
+    CollaborationNotFoundError,
     Role,
     SRAMAPIError,
     SRAMOrganisationClient,
@@ -188,6 +189,46 @@ def _epoch_seconds(value: str | None) -> int | None:
             status_code=400, detail=f"'{value}' is not a date in YYYY-MM-DD format."
         ) from exc
     return int(parsed.timestamp())
+
+
+def _own_group(collaboration: Collaboration, group_identifier: str) -> None:
+    """Check that a group belongs to the collaboration the caller was authorized for.
+
+    Authorization is granted per collaboration, but group endpoints address a group
+    directly, so without this check an admin of one collaboration could act on the
+    groups of another.
+
+    Args:
+        collaboration: The collaboration the caller may manage.
+        group_identifier: The group the request wants to change.
+
+    Raises:
+        CollaborationNotFoundError: If the group is not part of the collaboration.
+    """
+    if group_identifier not in {group.identifier for group in collaboration.groups}:
+        raise CollaborationNotFoundError(
+            f"Group {group_identifier} is not part of this collaboration."
+        )
+
+
+async def _own_invitation(
+    identifier: str, invitation_id: str, client: SRAMOrganisationClient
+) -> None:
+    """Check that an invitation is open in the collaboration the caller was authorized for.
+
+    Args:
+        identifier: The collaboration's SRAM identifier.
+        invitation_id: The invitation the request wants to change.
+        client: The organisation API client.
+
+    Raises:
+        CollaborationNotFoundError: If the invitation is not open in the collaboration.
+    """
+    invitations = await client.list_open_invitations(identifier)
+    if invitation_id not in {invitation.identifier for invitation in invitations}:
+        raise CollaborationNotFoundError(
+            f"Invitation {invitation_id} is not open in this collaboration."
+        )
 
 
 def _split_list(value: str | None) -> list[str]:
@@ -416,6 +457,7 @@ def create_collaborations_router() -> APIRouter:
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
+        await _own_invitation(identifier, invitation_id, client)
 
         await client.resend_invitation(invitation_id)
         return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
@@ -433,6 +475,7 @@ def create_collaborations_router() -> APIRouter:
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
+        await _own_invitation(identifier, invitation_id, client)
 
         await client.update_invitation(invitation_id, role=role)
         return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
@@ -449,6 +492,7 @@ def create_collaborations_router() -> APIRouter:
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
         await _managed_collaboration(identifier, user, client, settings)
+        await _own_invitation(identifier, invitation_id, client)
 
         await client.withdraw_invitation(invitation_id)
         return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
@@ -491,7 +535,8 @@ def create_collaborations_router() -> APIRouter:
         """Change the name or description of a group."""
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
-        await _managed_collaboration(identifier, user, client, settings)
+        collaboration = await _managed_collaboration(identifier, user, client, settings)
+        _own_group(collaboration, group_identifier)
 
         await client.update_group(
             group_identifier, name=name or None, description=description or None
@@ -509,7 +554,8 @@ def create_collaborations_router() -> APIRouter:
         """Delete a group."""
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
-        await _managed_collaboration(identifier, user, client, settings)
+        collaboration = await _managed_collaboration(identifier, user, client, settings)
+        _own_group(collaboration, group_identifier)
 
         await client.delete_group(group_identifier)
         return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
@@ -526,7 +572,8 @@ def create_collaborations_router() -> APIRouter:
         """Add a collaboration member to a group."""
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
-        await _managed_collaboration(identifier, user, client, settings)
+        collaboration = await _managed_collaboration(identifier, user, client, settings)
+        _own_group(collaboration, group_identifier)
 
         await client.add_group_member(group_identifier, uid)
         return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
@@ -543,7 +590,8 @@ def create_collaborations_router() -> APIRouter:
         """Remove a member from a group."""
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
-        await _managed_collaboration(identifier, user, client, settings)
+        collaboration = await _managed_collaboration(identifier, user, client, settings)
+        _own_group(collaboration, group_identifier)
 
         await client.remove_group_member(group_identifier, uid)
         return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
