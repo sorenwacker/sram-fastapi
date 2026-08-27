@@ -105,6 +105,19 @@ Check logs:
 make logs
 ```
 
+## Continuous integration
+
+Two workflows run in GitHub Actions:
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `docs.yml` | Push to main | Build and publish the documentation site |
+| `codeql.yml` | Pull request to main, and weekly on Monday 06:00 UTC | CodeQL static analysis of the Python sources, reported under the repository's Security tab |
+
+CodeQL runs the `security-and-quality` query suite. It is not run on every push: pull requests and the weekly schedule cover the same code without spending CI minutes on intermediate commits.
+
+LGTM.com, which previously offered this analysis as an external service, was retired in December 2022; its analysis is now part of GitHub code scanning.
+
 ## Ansible Directory Structure
 
 ```
