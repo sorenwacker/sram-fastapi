@@ -8,6 +8,7 @@ from sram_fastapi.collaborations import (
     Collaboration,
     CollaborationCreate,
     Group,
+    Invitation,
     Membership,
     Organisation,
     OrganisationTokenError,
@@ -73,6 +74,48 @@ class FakeClient:
         self.created: CollaborationCreate | None = None
         self.connected: list[str] = []
         self.deleted: list[str] = []
+        self.invited: list[dict] = []
+        self.roles: list[tuple[str, str, str]] = []
+        self.removed: list[tuple[str, str]] = []
+        self.invitation_actions: list[tuple[str, str]] = []
+
+    async def list_open_invitations(self, identifier: str) -> list[Invitation]:
+        """Return one open invitation."""
+        if self.error:
+            raise self.error
+        return [
+            Invitation(
+                identifier="inv-1",
+                email="pending@uniharderwijk.nl",
+                intended_role="member",
+                status="open",
+            )
+        ]
+
+    async def invite(self, identifier: str, emails, role, message=None, **kwargs):
+        """Record an invitation."""
+        self.invited.append({"identifier": identifier, "emails": emails, "role": role})
+        return []
+
+    async def set_member_role(self, identifier: str, uid: str, role: str) -> None:
+        """Record a role change."""
+        self.roles.append((identifier, uid, role))
+
+    async def remove_member(self, identifier: str, uid: str) -> None:
+        """Record a removal."""
+        self.removed.append((identifier, uid))
+
+    async def resend_invitation(self, external_identifier: str) -> None:
+        """Record a resend."""
+        self.invitation_actions.append(("resend", external_identifier))
+
+    async def update_invitation(self, external_identifier: str, role=None, groups=None) -> None:
+        """Record an invitation update."""
+        self.invitation_actions.append((f"role:{role}", external_identifier))
+
+    async def withdraw_invitation(self, external_identifier: str) -> None:
+        """Record a withdrawal."""
+        self.invitation_actions.append(("withdraw", external_identifier))
 
     async def create_collaboration(self, spec: "CollaborationCreate") -> Collaboration:
         """Record the creation and return the new collaboration."""
@@ -339,3 +382,130 @@ class TestProvisioning:
         assert response.status_code == 303
         assert response.headers["location"] == "/collaborations"
         assert fake.deleted == [CO_IDENTIFIER]
+
+
+ADMIN = "admin-uid@sram.eduteams.org"
+
+
+class TestMembershipManagement:
+    """Tests for managing members, admins and invitations from the demo application."""
+
+    def test_member_cannot_invite(self, settings: Settings):
+        """An ordinary member cannot invite users."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/invite",
+            data={"emails": "new@uniharderwijk.nl", "role": "member"},
+        )
+        assert response.status_code == 403
+        assert fake.invited == []
+
+    def test_collaboration_admin_invites(self, settings: Settings):
+        """An admin of the collaboration invites a user as member."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/invite",
+            data={"emails": "new@uniharderwijk.nl, other@uniharderwijk.nl", "role": "admin"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert response.headers["location"] == f"/collaborations/{CO_IDENTIFIER}"
+        assert fake.invited == [
+            {
+                "identifier": CO_IDENTIFIER,
+                "emails": ["new@uniharderwijk.nl", "other@uniharderwijk.nl"],
+                "role": "admin",
+            }
+        ]
+
+    def test_manager_invites_without_being_member(self, settings: Settings):
+        """A manager can invite into a collaboration they do not belong to."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/invite",
+            data={"emails": "new@uniharderwijk.nl", "role": "member"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert fake.invited[0]["role"] == "member"
+
+    def test_admin_promotes_member(self, settings: Settings):
+        """An admin promotes a member to admin."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/members/role",
+            data={"uid": "member-uid@sram.eduteams.org", "role": "admin"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert fake.roles == [(CO_IDENTIFIER, "member-uid@sram.eduteams.org", "admin")]
+
+    def test_member_cannot_change_roles(self, settings: Settings):
+        """An ordinary member cannot change roles."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/members/role",
+            data={"uid": "member-uid@sram.eduteams.org", "role": "admin"},
+        )
+        assert response.status_code == 403
+        assert fake.roles == []
+
+    def test_rejects_unknown_role(self, settings: Settings):
+        """A role other than admin or member is refused."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/members/role",
+            data={"uid": "member-uid@sram.eduteams.org", "role": "owner"},
+        )
+        assert response.status_code == 422
+        assert fake.roles == []
+
+    def test_admin_removes_member(self, settings: Settings):
+        """An admin removes a member."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        response = http.post(
+            f"/collaborations/{CO_IDENTIFIER}/members/remove",
+            data={"uid": "member-uid@sram.eduteams.org"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert fake.removed == [(CO_IDENTIFIER, "member-uid@sram.eduteams.org")]
+
+    def test_admin_manages_invitations(self, settings: Settings):
+        """An admin resends, re-roles and withdraws an invitation."""
+        fake = FakeClient()
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), fake)
+        base = f"/collaborations/{CO_IDENTIFIER}/invitations/inv-1"
+
+        assert http.post(f"{base}/resend", follow_redirects=False).status_code == 303
+        assert (
+            http.post(f"{base}/role", data={"role": "admin"}, follow_redirects=False).status_code
+            == 303
+        )
+        assert http.post(f"{base}/withdraw", follow_redirects=False).status_code == 303
+
+        assert fake.invitation_actions == [
+            ("resend", "inv-1"),
+            ("role:admin", "inv-1"),
+            ("withdraw", "inv-1"),
+        ]
+
+    def test_member_does_not_see_invitations(self, settings: Settings):
+        """Pending invitations are shown to admins only."""
+        http = build_client(settings, user_with(MEMBER), FakeClient())
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert "pending@uniharderwijk.nl" not in response.text
+
+    def test_admin_sees_invitations_and_controls(self, settings: Settings):
+        """An admin sees pending invitations and the management controls."""
+        http = build_client(settings, user_with(MEMBER, sub=ADMIN), FakeClient())
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert "pending@uniharderwijk.nl" in response.text
+        assert f"/collaborations/{CO_IDENTIFIER}/invite" in response.text

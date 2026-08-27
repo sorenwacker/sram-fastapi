@@ -369,3 +369,148 @@ class TestProvisioning:
 
         assert seen["method"] == "DELETE"
         assert seen["path"] == "/api/collaborations/v1/co-1"
+
+
+OPEN_INVITATIONS = [
+    {
+        "status": "open",
+        "intended_role": "member",
+        "invitation": {
+            "identifier": "E40BBF21-1606-4477-8167-674DCB8B62D6",
+            "email": "rdoe@uniharderwijk.nl",
+            "expiry_date": 1644015600,
+        },
+        "groups": [{"identifier": "group-1", "name": "AI researchers"}],
+    }
+]
+
+
+class TestMembership:
+    """Tests for invitations and membership changes."""
+
+    async def test_invite_sends_bulk_invitation(self):
+        """Inviting sends the collaboration, the emails and the intended role."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(
+                201,
+                json=[
+                    {
+                        "email": "rdoe@uniharderwijk.nl",
+                        "invitation_id": "E40BBF21-1606-4477-8167-674DCB8B62D6",
+                        "status": "open",
+                        "invitation_expiry_date": 1644015600,
+                    }
+                ],
+            )
+
+        invitations = await make_client(handler).invite(
+            "co-1",
+            emails=["rdoe@uniharderwijk.nl"],
+            role="admin",
+            message="Please join.",
+            groups=["group-1"],
+        )
+
+        assert seen["method"] == "PUT"
+        assert seen["path"] == "/api/invitations/v1/collaboration_invites"
+        assert seen["body"]["collaboration_identifier"] == "co-1"
+        assert seen["body"]["invites"] == ["rdoe@uniharderwijk.nl"]
+        assert seen["body"]["intended_role"] == "admin"
+        assert seen["body"]["message"] == "Please join."
+        assert seen["body"]["groups"] == ["group-1"]
+        assert invitations[0].identifier == "E40BBF21-1606-4477-8167-674DCB8B62D6"
+        assert invitations[0].email == "rdoe@uniharderwijk.nl"
+
+    async def test_list_open_invitations(self):
+        """Open invitations are parsed from the nested invitation object."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/api/invitations/v1/invitations/co-1"
+            return httpx.Response(200, json=OPEN_INVITATIONS)
+
+        invitations = await make_client(handler).list_open_invitations("co-1")
+
+        assert invitations[0].identifier == "E40BBF21-1606-4477-8167-674DCB8B62D6"
+        assert invitations[0].email == "rdoe@uniharderwijk.nl"
+        assert invitations[0].intended_role == "member"
+        assert invitations[0].status == "open"
+        assert invitations[0].expiry_date == 1644015600
+
+    async def test_resend_invitation(self):
+        """Resending an invitation targets the invitation's external identifier."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            return httpx.Response(201, json={})
+
+        await make_client(handler).resend_invitation("inv-1")
+
+        assert seen["method"] == "PUT"
+        assert seen["path"] == "/api/invitations/v1/resend/inv-1"
+
+    async def test_update_invitation_role(self):
+        """Updating an invitation sends the new intended role."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(201, json={})
+
+        await make_client(handler).update_invitation("inv-1", role="admin")
+
+        assert seen["method"] == "PATCH"
+        assert seen["path"] == "/api/invitations/v1/update/inv-1"
+        assert seen["body"] == {"intended_role": "admin"}
+
+    async def test_withdraw_invitation(self):
+        """Withdrawing an invitation deletes it."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            return httpx.Response(204)
+
+        await make_client(handler).withdraw_invitation("inv-1")
+
+        assert seen["method"] == "DELETE"
+        assert seen["path"] == "/api/invitations/v1/inv-1"
+
+    async def test_set_member_role(self):
+        """Changing a role sends the uid and the new role."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            seen["body"] = json.loads(request.content)
+            return httpx.Response(201, json={})
+
+        await make_client(handler).set_member_role("co-1", "member-uid@sram.eduteams.org", "admin")
+
+        assert seen["method"] == "PUT"
+        assert seen["path"] == "/api/collaborations/v1/co-1/members"
+        assert seen["body"] == {"uid": "member-uid@sram.eduteams.org", "role": "admin"}
+
+    async def test_remove_member(self):
+        """Removing a member targets the membership by uid."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["path"] = request.url.path
+            return httpx.Response(204)
+
+        await make_client(handler).remove_member("co-1", "member-uid@sram.eduteams.org")
+
+        assert seen["method"] == "DELETE"
+        assert seen["path"] == "/api/collaborations/v1/co-1/members/member-uid@sram.eduteams.org"

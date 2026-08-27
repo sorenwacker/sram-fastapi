@@ -23,6 +23,7 @@ from sram_fastapi.auth import AuthorizationError, User, get_optional_user
 from sram_fastapi.collaborations import (
     Collaboration,
     CollaborationCreate,
+    Role,
     SRAMAPIError,
     SRAMOrganisationClient,
     collaboration_urns,
@@ -126,6 +127,37 @@ def _require_manager(user: User, settings: Settings) -> None:
         return
     raise AuthorizationError(
         required=[settings.collaboration_manager_entitlement or "collaboration manager"],
+        actual=user.eduperson_entitlement or [],
+        check_type="entitlement",
+    )
+
+
+async def _managed_collaboration(
+    identifier: str,
+    user: User,
+    client: SRAMOrganisationClient,
+    settings: Settings,
+) -> Collaboration:
+    """Load a collaboration and check that the user may manage its membership.
+
+    Args:
+        identifier: The collaboration's SRAM identifier.
+        user: The logged-in user.
+        client: The organisation API client.
+        settings: Application settings.
+
+    Returns:
+        The collaboration.
+
+    Raises:
+        AuthorizationError: If the user is neither an admin of the collaboration
+            nor a holder of the manager entitlement.
+    """
+    collaboration = await client.get_collaboration(identifier)
+    if _is_manager(user, settings) or _is_collaboration_admin(user, collaboration):
+        return collaboration
+    raise AuthorizationError(
+        required=[f"admin of {collaboration.global_urn or identifier}"],
         actual=user.eduperson_entitlement or [],
         check_type="entitlement",
     )
@@ -296,6 +328,111 @@ def create_collaborations_router() -> APIRouter:
         await client.delete_collaboration(identifier)
         return RedirectResponse("/collaborations", status_code=303)
 
+    @router.post("/{identifier}/invite")
+    async def invite_members(
+        identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        emails: Annotated[str, Form()],
+        role: Annotated[Role, Form()] = "member",
+        message: Annotated[str, Form()] = "",
+    ) -> Response:
+        """Invite users to the collaboration by email."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.invite(
+            identifier,
+            emails=_split_list(emails),
+            role=role,
+            message=message or None,
+        )
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/members/role")
+    async def change_member_role(
+        identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        uid: Annotated[str, Form()],
+        role: Annotated[Role, Form()],
+    ) -> Response:
+        """Promote a member to admin, or demote an admin to member."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.set_member_role(identifier, uid, role)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/members/remove")
+    async def remove_member(
+        identifier: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        uid: Annotated[str, Form()],
+    ) -> Response:
+        """Remove a member from the collaboration."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.remove_member(identifier, uid)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/invitations/{invitation_id}/resend")
+    async def resend_invitation(
+        identifier: str,
+        invitation_id: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> Response:
+        """Send an open invitation again."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.resend_invitation(invitation_id)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/invitations/{invitation_id}/role")
+    async def change_invitation_role(
+        identifier: str,
+        invitation_id: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        role: Annotated[Role, Form()],
+    ) -> Response:
+        """Change the role an invitee will get on acceptance."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.update_invitation(invitation_id, role=role)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
+    @router.post("/{identifier}/invitations/{invitation_id}/withdraw")
+    async def withdraw_invitation(
+        identifier: str,
+        invitation_id: str,
+        user: Annotated[User | None, Depends(get_optional_user)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> Response:
+        """Withdraw an open invitation."""
+        if user is None:
+            return RedirectResponse("/auth/login")
+        await _managed_collaboration(identifier, user, client, settings)
+
+        await client.withdraw_invitation(invitation_id)
+        return RedirectResponse(f"/collaborations/{identifier}", status_code=303)
+
     @router.get("/{identifier}", response_class=HTMLResponse)
     async def collaboration_detail(
         request: Request,
@@ -345,16 +482,19 @@ def create_collaborations_router() -> APIRouter:
 
         is_manager = _is_manager(user, settings)
         is_admin = _is_collaboration_admin(user, collaboration)
+        can_manage = is_admin or is_manager
+        invitations = await client.list_open_invitations(identifier) if can_manage else []
         return templates.TemplateResponse(
             request=request,
             name="collaboration_detail.html",
             context={
                 "user": user,
                 "collaboration": collaboration,
-                "members": _member_views(collaboration, reveal=is_admin or is_manager),
+                "members": _member_views(collaboration, reveal=can_manage),
+                "invitations": invitations,
                 "is_admin": is_admin,
                 "is_manager": is_manager,
-                "can_manage": is_admin or is_manager,
+                "can_manage": can_manage,
                 "hidden_label": HIDDEN,
             },
         )

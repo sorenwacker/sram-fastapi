@@ -205,6 +205,39 @@ class Collaboration:
 
 
 @dataclass
+class Invitation:
+    """An open invitation to join a collaboration."""
+
+    identifier: str
+    email: str
+    intended_role: str = "member"
+    status: str | None = None
+    expiry_date: int | None = None
+
+    @classmethod
+    def from_open_invitation(cls, data: dict) -> "Invitation":
+        """Create an invitation from an entry of the open invitations list."""
+        invitation = data.get("invitation") or {}
+        return cls(
+            identifier=invitation.get("identifier", ""),
+            email=invitation.get("email", ""),
+            intended_role=data.get("intended_role", "member"),
+            status=data.get("status"),
+            expiry_date=invitation.get("expiry_date"),
+        )
+
+    @classmethod
+    def from_created(cls, data: dict) -> "Invitation":
+        """Create an invitation from the response to a bulk invite."""
+        return cls(
+            identifier=data.get("invitation_id", ""),
+            email=data.get("email", ""),
+            status=data.get("status"),
+            expiry_date=data.get("invitation_expiry_date"),
+        )
+
+
+@dataclass
 class CollaborationCreate:
     """The attributes of a collaboration to be created.
 
@@ -367,6 +400,118 @@ class SRAMOrganisationClient:
             identifier: The collaboration's SRAM identifier.
         """
         await self._request("DELETE", f"/api/collaborations/v1/{identifier}")
+
+    async def invite(
+        self,
+        identifier: str,
+        emails: list[str],
+        role: Role = "member",
+        message: str | None = None,
+        invitation_expiry_date: int | None = None,
+        membership_expiry_date: int | None = None,
+        groups: list[str] | None = None,
+    ) -> list[Invitation]:
+        """Invite users to a collaboration by email.
+
+        The invitees receive an email from SRAM and become members once they accept.
+
+        Args:
+            identifier: The collaboration's SRAM identifier.
+            emails: Email addresses to invite.
+            role: The role the invitees get on acceptance.
+            message: Message included in the invitation email.
+            invitation_expiry_date: Expiry of the invitation in epoch milliseconds.
+            membership_expiry_date: Expiry of the membership in epoch milliseconds.
+            groups: Identifiers of groups the invitees join on acceptance.
+
+        Returns:
+            One invitation per invited email address.
+        """
+        payload: dict[str, Any] = {
+            "collaboration_identifier": identifier,
+            "invites": emails,
+            "intended_role": role,
+        }
+        optional = {
+            "message": message,
+            "invitation_expiry_date": invitation_expiry_date,
+            "membership_expiry_date": membership_expiry_date,
+            "groups": groups or None,
+        }
+        payload.update({key: value for key, value in optional.items() if value})
+
+        data = await self._request("PUT", "/api/invitations/v1/collaboration_invites", json=payload)
+        return [Invitation.from_created(item) for item in data or []]
+
+    async def list_open_invitations(self, identifier: str) -> list[Invitation]:
+        """List the open invitations of a collaboration.
+
+        Args:
+            identifier: The collaboration's SRAM identifier.
+        """
+        data = await self._request("GET", f"/api/invitations/v1/invitations/{identifier}")
+        return [Invitation.from_open_invitation(item) for item in data or []]
+
+    async def resend_invitation(self, external_identifier: str) -> None:
+        """Send an open invitation again.
+
+        Args:
+            external_identifier: The invitation's external identifier.
+        """
+        await self._request("PUT", f"/api/invitations/v1/resend/{external_identifier}")
+
+    async def update_invitation(
+        self,
+        external_identifier: str,
+        role: Role | None = None,
+        groups: list[str] | None = None,
+    ) -> None:
+        """Change the intended role or target groups of an open invitation.
+
+        Args:
+            external_identifier: The invitation's external identifier.
+            role: The new intended role.
+            groups: Identifiers of the groups the invitee joins on acceptance.
+        """
+        payload: dict[str, Any] = {}
+        if role:
+            payload["intended_role"] = role
+        if groups is not None:
+            payload["groups"] = groups
+        await self._request(
+            "PATCH", f"/api/invitations/v1/update/{external_identifier}", json=payload
+        )
+
+    async def withdraw_invitation(self, external_identifier: str) -> None:
+        """Withdraw an open invitation.
+
+        Args:
+            external_identifier: The invitation's external identifier.
+        """
+        await self._request("DELETE", f"/api/invitations/v1/{external_identifier}")
+
+    async def set_member_role(self, identifier: str, uid: str, role: Role) -> None:
+        """Set a member's role in a collaboration.
+
+        Args:
+            identifier: The collaboration's SRAM identifier.
+            uid: The member's SRAM uid.
+            role: The new role, admin or member.
+        """
+        await self._request(
+            "PUT",
+            f"/api/collaborations/v1/{identifier}/members",
+            json={"uid": uid, "role": role},
+        )
+
+    async def remove_member(self, identifier: str, uid: str) -> None:
+        """Remove a member from a collaboration.
+
+        Args:
+            identifier: The collaboration's SRAM identifier.
+            uid: The member's SRAM uid.
+        """
+        await self._request("DELETE", f"/api/collaborations/v1/{identifier}/members/{uid}")
 
     async def _request(self, method: str, path: str, json: dict | None = None) -> Any:
         """Send a request to the SRAM organisation API.

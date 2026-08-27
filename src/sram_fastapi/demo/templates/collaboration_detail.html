@@ -34,7 +34,7 @@
     {% endif %}
     <table>
         <thead>
-            <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>SRAM uid</th></tr>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>SRAM uid</th>{% if can_manage %}<th>Actions</th>{% endif %}</tr>
         </thead>
         <tbody>
             {% for member in members %}
@@ -44,13 +44,82 @@
                 <td>{{ member.role }}</td>
                 <td>{{ member.status }}</td>
                 <td><code>{{ member.uid }}</code></td>
+                {% if can_manage %}
+                <td class="actions">
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/members/role">
+                        <input type="hidden" name="uid" value="{{ member.uid }}">
+                        <input type="hidden" name="role" value="{{ 'member' if member.role == 'admin' else 'admin' }}">
+                        <button type="submit">{{ "Demote to member" if member.role == "admin" else "Promote to admin" }}</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/members/remove"
+                          onsubmit="return confirm('Remove {{ member.name }} from {{ collaboration.name }}?');">
+                        <input type="hidden" name="uid" value="{{ member.uid }}">
+                        <button type="submit" class="danger">Remove</button>
+                    </form>
+                </td>
+                {% endif %}
             </tr>
             {% else %}
-            <tr><td colspan="5" style="color: #a0aec0;">No members</td></tr>
+            <tr><td colspan="6" style="color: #a0aec0;">No members</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+{% if can_manage %}
+<div class="card">
+    <h2>Invite users</h2>
+    <p class="section-intro">
+        SRAM emails each address an invitation. They become members once they accept.
+    </p>
+    <form method="post" action="/collaborations/{{ collaboration.identifier }}/invite" class="stacked">
+        <label>Email addresses<input type="text" name="emails" required placeholder="comma separated"></label>
+        <label>Intended role
+            <select name="role">
+                <option value="member">member</option>
+                <option value="admin">admin</option>
+            </select>
+        </label>
+        <label>Message<textarea name="message" rows="2"></textarea></label>
+        <button type="submit">Send invitations</button>
+    </form>
+    <p class="api-hint">PUT /api/invitations/v1/collaboration_invites</p>
+</div>
+
+<div class="card">
+    <h2>Open invitations</h2>
+    <table>
+        <thead>
+            <tr><th>Email</th><th>Intended role</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for invitation in invitations %}
+            <tr>
+                <td>{{ invitation.email }}</td>
+                <td>{{ invitation.intended_role }}</td>
+                <td>{{ invitation.status }}</td>
+                <td class="actions">
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/invitations/{{ invitation.identifier }}/resend">
+                        <button type="submit">Resend</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/invitations/{{ invitation.identifier }}/role">
+                        <input type="hidden" name="role" value="{{ 'member' if invitation.intended_role == 'admin' else 'admin' }}">
+                        <button type="submit">Make {{ "member" if invitation.intended_role == "admin" else "admin" }}</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/invitations/{{ invitation.identifier }}/withdraw"
+                          onsubmit="return confirm('Withdraw the invitation for {{ invitation.email }}?');">
+                        <button type="submit" class="danger">Withdraw</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="color: #a0aec0;">No open invitations</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="api-hint">GET /api/invitations/v1/invitations/{{ collaboration.identifier }}</p>
+</div>
+{% endif %}
 
 <div class="card">
     <h2>Groups</h2>
@@ -117,5 +186,12 @@
     .api-hint { margin-top: 0.75rem; font-family: monospace; font-size: 0.8rem; color: #a0aec0; }
     button { padding: 0.5rem 1rem; border: none; border-radius: 4px; background: #3182ce; color: white; cursor: pointer; font-size: 0.9rem; }
     button.danger { background: #c53030; }
+    td.actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    td.actions form { display: inline; }
+    form.stacked label { display: block; margin-bottom: 0.75rem; color: #4a5568; font-size: 0.9rem; }
+    form.stacked input[type="text"], form.stacked textarea, form.stacked select {
+        display: block; width: 100%; margin-top: 0.25rem; padding: 0.5rem;
+        border: 1px solid #cbd5e0; border-radius: 4px; font-size: 0.95rem;
+    }
 </style>
 {% endblock %}
