@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}SRAM error - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card" style="border-left: 4px solid #c53030;">
+    <h1 style="color: #c53030;">{{ heading }}</h1>
+    <p>{{ message }}</p>
+</div>
+
+<div class="card">
+    <h2>What this means</h2>
+    <p>{{ explanation }}</p>
+</div>
+
+<p><a href="/collaborations">Back to collaborations</a></p>
+{% endblock %}

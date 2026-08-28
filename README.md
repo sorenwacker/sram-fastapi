@@ -30,6 +30,7 @@ Full documentation is published on GitHub Pages at [sorenwacker.github.io/sram-f
 
 - [API Reference](https://sorenwacker.github.io/sram-fastapi/api-reference/): Python modules and how to use them in your FastAPI application
 - [Authorization](https://sorenwacker.github.io/sram-fastapi/authorization/): implementing authorization in a SRAM-authenticated application
+- [Collaboration Management](https://sorenwacker.github.io/sram-fastapi/collaboration-management/): provisioning collaborations and managing members through the SRAM organisation API
 - [SRAM Setup](https://sorenwacker.github.io/sram-fastapi/sram-setup/): registering the application as a service in SRAM and connecting it to collaborations
 - [Deployment](https://sorenwacker.github.io/sram-fastapi/deployment/): deploying the application to production
 
@@ -41,6 +42,7 @@ The documentation sources live in `docs/` and are built with mkdocs (`uv run mkd
 - Token introspection for CLI/API access
 - User claims extraction (email, name, entitlements, affiliations)
 - Demo application with HTML templates
+- Collaboration management: provision collaborations, invite users, manage admins, members and groups
 - Configuration validation with helpful error messages
 
 ## Project Structure
@@ -51,8 +53,10 @@ src/sram_fastapi/
     config.py          # Settings management with validation
     auth.py            # OIDC client and authentication dependencies
     main.py            # API-only FastAPI application
+    collaborations.py  # SRAM organisation API client
     demo/
         app.py         # Demo application with HTML templates
+        routers/       # Page, auth, authorization and collaboration routes
         templates/     # Jinja2 templates for demo UI
 ```
 

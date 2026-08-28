@@ -6,6 +6,22 @@ base_url: https://sram-demo.ewi.tudelft.nl
 # SRAM OIDC
 sram_oidc_discovery_url: https://proxy.sram.surf.nl/.well-known/openid-configuration
 
+# SRAM organisation API (collaboration management)
+# Acceptance by default: the organisation API token is an organisation-wide
+# administrator credential, so production is a deliberate decision, not a default
+sram_api_base_url: https://acc.sram.surf.nl
+# Deleting a collaboration destroys its memberships and cannot be undone
+collaboration_deletion_enabled: "false"
+# Entity ID of this service in SRAM; without it a new collaboration cannot be connected
+sram_service_entity_id: ""
+# Entitlement required to provision and delete collaborations; without it nobody may
+collaboration_manager_entitlement: ""
+# The organisation API token itself lives in vault.yml as vault_sram_organisation_api_token
+# Features granted by group membership, as feature=group_short_name pairs
+# The two groups that exist in tudelft:sramdemo. Neither belongs to this service, so
+# each is bound to that collaboration: the same name elsewhere grants nothing.
+sram_feature_groups: "sramdemogroup=tudelft:sramdemo/sramdemogroup, group1=tudelft:sramdemo/group1"
+
 # Gunicorn settings
 gunicorn_workers: 4
 gunicorn_port: 8080

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Collaborations - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>Collaborations</h1>
+    <p class="section-intro">
+        Collaborations you belong to, read from SRAM through the organisation API.
+        Membership comes from your <code>eduperson_entitlement</code> claim.
+    </p>
+</div>
+
+{% if error %}
+<div class="card" style="border-left: 4px solid #c53030;">
+    <h2 style="color: #c53030;">SRAM could not be reached</h2>
+    <p>{{ error }}</p>
+</div>
+{% endif %}
+
+{% if not configured %}
+<div class="card" style="border-left: 4px solid #d69e2e;">
+    <h2>Collaboration management is not configured</h2>
+    <p>
+        Set <code>SRAM_ORGANISATION_API_TOKEN</code> to an organisation API token to enable
+        this section. The token is created by an organisation admin on the organisation's
+        API tokens tab in SRAM.
+    </p>
+    <p style="margin-top: 0.75rem;">
+        Your entitlements imply membership of these collaborations:
+    </p>
+    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+        {% for urn in member_urns %}
+        <li><code>{{ urn }}</code></li>
+        {% else %}
+        <li style="color: #a0aec0;">None</li>
+        {% endfor %}
+    </ul>
+</div>
+{% else %}
+{% if is_manager %}
+<div class="card">
+    <h2>Provision</h2>
+    <p class="section-intro">You hold the manager entitlement, so you can create collaborations.</p>
+    <p style="margin-top: 0.75rem;"><a href="/collaborations/new">New collaboration</a></p>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Your collaborations</h2>
+    {% if collaborations %}
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Short name</th><th>Global URN</th></tr>
+        </thead>
+        <tbody>
+            {% for co in collaborations %}
+            <tr>
+                <td><a href="/collaborations/{{ co.identifier }}">{{ co.name }}</a></td>
+                <td><code>{{ co.short_name }}</code></td>
+                <td><code>{{ co.global_urn }}</code></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #a0aec0;">
+        You are not a member of any collaboration in this organisation.
+    </p>
+    {% endif %}
+    <p class="api-hint">GET /api/organisations/v1</p>
+</div>
+
+{% if organisation %}
+<div class="card">
+    <h2>{{ organisation.name }}</h2>
+    <p class="section-intro">
+        Every collaboration of the organisation, shown because you hold the manager entitlement.
+    </p>
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Short name</th><th>Global URN</th></tr>
+        </thead>
+        <tbody>
+            {% for co in organisation.collaborations %}
+            <tr>
+                <td><a href="/collaborations/{{ co.identifier }}">{{ co.name }}</a></td>
+                <td><code>{{ co.short_name }}</code></td>
+                <td><code>{{ co.global_urn }}</code></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block styles %}
+<style>
+    .section-intro { color: #718096; margin-top: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e2e8f0; }
+    th { color: #4a5568; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .api-hint { margin-top: 0.75rem; font-family: monospace; font-size: 0.8rem; color: #a0aec0; }
+</style>
+{% endblock %}

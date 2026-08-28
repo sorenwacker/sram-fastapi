@@ -2,7 +2,7 @@
 
 # Development
 dev:
-	uv run uvicorn sram_fastapi.demo.app:app --reload --port 8124
+	uv run uvicorn --factory sram_fastapi.demo.app:get_demo_app --reload --port 8124
 
 # Testing
 test:

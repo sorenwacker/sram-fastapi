@@ -12,6 +12,13 @@ from fastapi import Depends, HTTPException, Request, status
 from starlette.config import Config
 from starlette.responses import RedirectResponse
 
+from sram_fastapi.collaborations import (
+    ServiceGroupIndex,
+    SRAMOrganisationClient,
+    get_organisation_client,
+    get_service_group_index,
+    groups_of,
+)
 from sram_fastapi.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -107,8 +114,7 @@ class OIDCClient:
                 server_metadata_url=self.settings.sram_oidc_discovery_url,
                 client_kwargs={
                     "scope": (
-                        "openid email profile "
-                        "eduperson_entitlement voperson_external_affiliation"
+                        "openid email profile eduperson_entitlement voperson_external_affiliation"
                     ),
                 },
             )
@@ -384,3 +390,125 @@ def require_affiliation(*required: str, require_all: bool = False) -> Callable:
         get_user_values=lambda u: u.voperson_external_affiliation or [],
         match_func=_match_affiliation,
     )
+
+
+def _describe_feature(settings: Settings, feature: str) -> str:
+    """Describe the group a feature needs, for an authorization error message."""
+    group = settings.feature_groups.get(feature)
+    if group is None:
+        return f"{feature} (not configured)"
+    if group.collaboration:
+        return f"{group.collaboration}/{group.short_name}"
+    return group.short_name
+
+
+async def grants_feature(
+    user: User,
+    settings: Settings,
+    feature: str,
+    client: SRAMOrganisationClient | None = None,
+    index: ServiceGroupIndex | None = None,
+) -> bool:
+    """Whether the user holds the group that grants a feature.
+
+    A feature bound to a collaboration is granted by that collaboration's group, and needs
+    nothing else. A feature naming only a short name is granted only where SRAM confirms
+    that a service group of that name exists, because a short name is chosen by whoever
+    creates the group: an admin of any collaboration connected to this service could
+    otherwise create a group under that name and hand the feature to their members.
+
+    Verification covers the organisation the API token belongs to. Without the token, or
+    when SRAM cannot be reached, an unbound feature grants nothing.
+
+    Args:
+        user: The authenticated user.
+        settings: Application settings holding the feature mapping.
+        feature: The feature name to check.
+        client: The organisation API client, needed to verify an unbound feature.
+        index: The service group index, needed to verify an unbound feature.
+
+    Returns:
+        True if the user holds a group that grants the feature.
+    """
+    group = settings.feature_groups.get(feature)
+    if group is None:
+        logger.error(
+            "Feature '%s' is not mapped to a group in SRAM_FEATURE_GROUPS; "
+            "access is denied until it is configured.",
+            feature,
+        )
+        return False
+
+    held = groups_of(user.eduperson_entitlement)
+    if group.collaboration:
+        return (group.collaboration, group.short_name) in held
+
+    if client is None or index is None:
+        return False
+
+    verified = (await index.bindings(client)).get(group.short_name, set())
+    if not verified:
+        logger.error(
+            "Feature '%s' names the group '%s', which SRAM does not report as a service "
+            "group of this organisation, so it grants nothing. Define it as a service "
+            "group, or bind the feature as SRAM_FEATURE_GROUPS=%s=<collaboration>/%s.",
+            feature,
+            group.short_name,
+            feature,
+            group.short_name,
+        )
+        return False
+
+    return any(
+        short_name == group.short_name and collaboration in verified
+        for collaboration, short_name in held
+    )
+
+
+def require_group(*features: str, require_all: bool = False) -> Callable:
+    """Create a dependency that requires membership of the groups granting features.
+
+    A feature is mapped to a SRAM group by ``SRAM_FEATURE_GROUPS``. Matching on the
+    group rather than on a full entitlement lets one rule serve every collaboration the
+    application is connected to, because the collaboration part of an entitlement differs
+    per collaboration while a service group's short name is fixed by the service.
+
+    A feature the deployment does not define, or one that names a group this service does
+    not own, is denied to everyone. See :func:`grants_feature` for the rules.
+
+    Args:
+        *features: One or more feature names to check.
+        require_all: If True, the user must hold all of them. If False (default), one
+            of them suffices.
+
+    Returns:
+        A dependency function that validates the features and returns the User.
+
+    Raises:
+        AuthorizationError: If the user lacks the required group membership.
+    """
+
+    async def check_groups(
+        user: Annotated[User, Depends(get_current_user)],
+        settings: Annotated[Settings, Depends(get_settings)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        index: Annotated[ServiceGroupIndex, Depends(get_service_group_index)],
+    ) -> User:
+        granted = [
+            await grants_feature(user, settings, feature, client, index) for feature in features
+        ]
+        has_required = all(granted) if require_all else any(granted)
+
+        if not (features and has_required):
+            raise AuthorizationError(
+                required=[_describe_feature(settings, feature) for feature in features],
+                actual=sorted(
+                    f"{collaboration}/{short_name}"
+                    for collaboration, short_name in groups_of(user.eduperson_entitlement)
+                ),
+                check_type="group",
+                require_all=require_all,
+            )
+        return user
+
+    return check_groups

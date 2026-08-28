@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}{{ collaboration.name }} - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>{{ collaboration.name }}</h1>
+    <p class="section-intro">{{ collaboration.description }}</p>
+    <table>
+        <tbody>
+            <tr><th>Identifier</th><td><code>{{ collaboration.identifier }}</code></td></tr>
+            <tr><th>Short name</th><td><code>{{ collaboration.short_name }}</code></td></tr>
+            <tr><th>Global URN</th><td><code>{{ collaboration.global_urn }}</code></td></tr>
+            <tr><th>Status</th><td>{{ collaboration.status }}</td></tr>
+            <tr>
+                <th>Member names disclosed</th>
+                <td>{{ "yes" if collaboration.disclose_member_information else "no" }}</td>
+            </tr>
+            <tr>
+                <th>Member emails disclosed</th>
+                <td>{{ "yes" if collaboration.disclose_email_information else "no" }}</td>
+            </tr>
+        </tbody>
+    </table>
+    <p class="api-hint">GET /api/collaborations/v1/{{ collaboration.identifier }}</p>
+</div>
+
+<div class="card">
+    <h2>Members</h2>
+    {% if not can_manage %}
+    <p class="section-intro">
+        Details marked "{{ hidden_label }}" are withheld by this collaboration's disclosure settings.
+    </p>
+    {% endif %}
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>SRAM uid</th>{% if can_manage %}<th>Actions</th>{% endif %}</tr>
+        </thead>
+        <tbody>
+            {% for member in members %}
+            <tr>
+                <td>{{ member.name }}</td>
+                <td>{{ member.email }}</td>
+                <td>{{ member.role }}</td>
+                <td>{{ member.status }}</td>
+                <td><code>{{ member.uid }}</code></td>
+                {% if can_manage %}
+                <td class="actions">
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/members/role">
+                        <input type="hidden" name="uid" value="{{ member.uid }}">
+                        <input type="hidden" name="role" value="{{ 'member' if member.role == 'admin' else 'admin' }}">
+                        <button type="submit">{{ "Demote to member" if member.role == "admin" else "Promote to admin" }}</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/members/remove"
+                          data-confirm="Remove {{ member.name }} from {{ collaboration.name }}?">
+                        <input type="hidden" name="uid" value="{{ member.uid }}">
+                        <button type="submit" class="danger">Remove</button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="color: #a0aec0;">No members</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if can_manage %}
+<div class="card">
+    <h2>Invite users</h2>
+    <p class="section-intro">
+        SRAM emails each address an invitation. They become members once they accept.
+    </p>
+    <form method="post" action="/collaborations/{{ collaboration.identifier }}/invite" class="stacked">
+        <label>Email addresses<input type="text" name="emails" required placeholder="comma separated"></label>
+        <label>Intended role
+            <select name="role">
+                <option value="member">member</option>
+                <option value="admin">admin</option>
+            </select>
+        </label>
+        <label>Message<textarea name="message" rows="2"></textarea></label>
+        <button type="submit">Send invitations</button>
+    </form>
+    <p class="api-hint">PUT /api/invitations/v1/collaboration_invites</p>
+</div>
+
+<div class="card">
+    <h2>Open invitations</h2>
+    <table>
+        <thead>
+            <tr><th>Email</th><th>Intended role</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for invitation in invitations %}
+            <tr>
+                <td>{{ invitation.email }}</td>
+                <td>{{ invitation.intended_role }}</td>
+                <td>{{ invitation.status }}</td>
+                <td class="actions">
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/invitations/{{ invitation.identifier }}/resend">
+                        <button type="submit">Resend</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/invitations/{{ invitation.identifier }}/role">
+                        <input type="hidden" name="role" value="{{ 'member' if invitation.intended_role == 'admin' else 'admin' }}">
+                        <button type="submit">Make {{ "member" if invitation.intended_role == "admin" else "admin" }}</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/invitations/{{ invitation.identifier }}/withdraw"
+                          data-confirm="Withdraw the invitation for {{ invitation.email }}?">
+                        <button type="submit" class="danger">Withdraw</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="color: #a0aec0;">No open invitations</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="api-hint">GET /api/invitations/v1/invitations/{{ collaboration.identifier }}</p>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Groups</h2>
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Short name</th><th>Members</th>{% if can_manage %}<th>Actions</th>{% endif %}</tr>
+        </thead>
+        <tbody>
+            {% for group in collaboration.groups %}
+            <tr>
+                <td>{{ group.name }}</td>
+                <td><code>{{ group.short_name }}</code></td>
+                <td>{{ group.member_uids | length }}</td>
+                {% if can_manage %}
+                <td class="actions">
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/update">
+                        <input type="text" name="name" placeholder="new name" required>
+                        <input type="text" name="description" placeholder="new description">
+                        <button type="submit">Update</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/members">
+                        <select name="uid">
+                            {% for member in members %}
+                            <option value="{{ member.uid }}">{{ member.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit">Add member</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/members/remove">
+                        <select name="uid">
+                            {% for uid in group.member_uids %}
+                            <option value="{{ uid }}">{{ uid }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit">Remove member</button>
+                    </form>
+                    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups/{{ group.identifier }}/delete"
+                          data-confirm="Delete the group {{ group.name }}?">
+                        <button type="submit" class="danger">Delete group</button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="color: #a0aec0;">No groups</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if can_manage %}
+    <form method="post" action="/collaborations/{{ collaboration.identifier }}/groups" class="stacked" style="margin-top: 1rem;">
+        <label>Name<input type="text" name="name" required></label>
+        <label>Short name<input type="text" name="short_name" required></label>
+        <label>Description<input type="text" name="description"></label>
+        <label class="checkbox"><input type="checkbox" name="auto_provision_members"> Add every collaboration member automatically</label>
+        <button type="submit">Create group</button>
+    </form>
+    <p class="api-hint">POST /api/groups/v1</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Connected services</h2>
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Entity ID</th></tr>
+        </thead>
+        <tbody>
+            {% for service in collaboration.services %}
+            <tr>
+                <td>{{ service.name }}</td>
+                <td><code>{{ service.entity_id }}</code></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" style="color: #a0aec0;">No services connected</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if can_manage %}
+    <div class="actions" style="margin-top: 1rem;">
+        <form method="post" action="/collaborations/{{ collaboration.identifier }}/services/connect">
+            <button type="submit">Connect this service</button>
+        </form>
+        <form method="post" action="/collaborations/{{ collaboration.identifier }}/services/disconnect"
+              data-confirm="Disconnect this service? Members lose access to this application.">
+            <button type="submit" class="danger">Disconnect this service</button>
+        </form>
+    </div>
+    <p class="api-hint">
+        PUT /api/collaborations_services/v1/connect_collaboration_service/{{ collaboration.identifier }}
+    </p>
+    {% endif %}
+</div>
+
+{% if is_manager and not deletion_enabled %}
+<div class="card" style="border-left: 4px solid #d69e2e;">
+    <h2>Delete collaboration</h2>
+    <p class="section-intro">
+        Deletion is switched off in this deployment. Set <code>COLLABORATION_DELETION_ENABLED</code>
+        to enable it. It destroys the collaboration and every membership in it, and cannot be undone.
+    </p>
+</div>
+{% elif is_manager %}
+<div class="card" style="border-left: 4px solid #c53030;">
+    <h2>Delete collaboration</h2>
+    <p class="section-intro">
+        Removes the collaboration and all its memberships in SRAM. This cannot be undone.
+    </p>
+    <form method="post" action="/collaborations/{{ collaboration.identifier }}/delete"
+          data-confirm="Delete {{ collaboration.name }} and all its memberships?">
+        <button type="submit" class="danger">Delete collaboration</button>
+    </form>
+    <p class="api-hint">DELETE /api/collaborations/v1/{{ collaboration.identifier }}</p>
+</div>
+{% endif %}
+
+<p><a href="/collaborations">Back to collaborations</a></p>
+
+<script>
+    // Confirmation text is carried in a data attribute rather than an inline handler:
+    // an attribute value is HTML-decoded before it would reach the JavaScript parser,
+    // so HTML escaping alone cannot keep a name or email out of the script.
+    document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+            if (!window.confirm(form.dataset.confirm)) {
+                event.preventDefault();
+            }
+        });
+    });
+</script>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .section-intro { color: #718096; margin-top: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    th { color: #4a5568; font-size: 0.85rem; }
+    .api-hint { margin-top: 0.75rem; font-family: monospace; font-size: 0.8rem; color: #a0aec0; }
+    button { padding: 0.5rem 1rem; border: none; border-radius: 4px; background: #3182ce; color: white; cursor: pointer; font-size: 0.9rem; }
+    button.danger { background: #c53030; }
+    td.actions, div.actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    td.actions form { display: inline; }
+    form.stacked label { display: block; margin-bottom: 0.75rem; color: #4a5568; font-size: 0.9rem; }
+    form.stacked label.checkbox { display: flex; align-items: center; gap: 0.5rem; }
+    td.actions select, td.actions input[type="text"] { padding: 0.3rem; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 0.85rem; }
+    form.stacked input[type="text"], form.stacked textarea, form.stacked select {
+        display: block; width: 100%; margin-top: 0.25rem; padding: 0.5rem;
+        border: 1px solid #cbd5e0; border-radius: 4px; font-size: 0.95rem;
+    }
+</style>
+{% endblock %}

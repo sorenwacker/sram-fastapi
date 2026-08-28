@@ -1,10 +1,26 @@
 """Application configuration using pydantic-settings."""
 
 import sys
+from dataclasses import dataclass
 from functools import lru_cache
 
 from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+@dataclass(frozen=True)
+class FeatureGroup:
+    """The SRAM group that grants a feature.
+
+    Attributes:
+        short_name: The group's short name, as it appears in the entitlement.
+        collaboration: The global URN of the collaboration whose group grants the
+            feature. None when the configuration named no collaboration, in which case
+            the feature grants nothing.
+    """
+
+    short_name: str
+    collaboration: str | None = None
 
 
 class Settings(BaseSettings):
@@ -30,6 +46,19 @@ class Settings(BaseSettings):
     sram_introspection_token: str | None = None
     sram_introspection_url: str = "https://sram.surf.nl/api/tokens/introspect"
 
+    # SRAM organisation API (collaboration management)
+    sram_api_base_url: str = "https://sram.surf.nl"
+    sram_organisation_api_token: str | None = None
+    sram_service_entity_id: str | None = None
+    collaboration_manager_entitlement: str | None = None
+    # Deleting a collaboration destroys its memberships and cannot be undone,
+    # so it stays off unless a deployment asks for it
+    collaboration_deletion_enabled: bool = False
+    # Features this application offers, mapped to the SRAM groups that grant them, as
+    # "feature=short_name" or "feature=collaboration_urn/short_name" pairs. A bare name
+    # is both feature and short name.
+    sram_feature_groups: str = ""
+
     # Session settings
     session_cookie_name: str = "session"
     session_max_age: int = 3600  # 1 hour
@@ -38,6 +67,34 @@ class Settings(BaseSettings):
     # Server settings
     base_url: str = "http://localhost:8124"
     allowed_redirect_urls: list[str] = ["http://localhost:8124"]
+
+    @property
+    def feature_groups(self) -> dict[str, "FeatureGroup"]:
+        """Features mapped to the groups that grant them.
+
+        Each entry is ``feature=collaboration_urn/short_name``, binding the feature to
+        one group in one collaboration. An entry naming only a short name parses, but
+        grants nothing: see :func:`sram_fastapi.auth.grants_feature` for why a name on
+        its own cannot be trusted.
+
+        Returns:
+            A mapping of feature name to the group granting it, empty when none are
+            configured.
+        """
+        mapping: dict[str, FeatureGroup] = {}
+        for entry in self.sram_feature_groups.split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            feature, _, value = entry.partition("=")
+            feature = feature.strip()
+            value = value.strip() or feature
+            collaboration, separator, short_name = value.rpartition("/")
+            mapping[feature] = FeatureGroup(
+                short_name=short_name.strip(),
+                collaboration=collaboration.strip() if separator else None,
+            )
+        return mapping
 
 
 class ConfigurationError(Exception):

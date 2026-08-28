@@ -54,6 +54,10 @@ Required secrets:
 | `vault_sram_oidc_client_id` | OIDC client ID from SRAM |
 | `vault_sram_oidc_client_secret` | OIDC client secret from SRAM |
 | `vault_secret_key` | Session encryption key |
+| `vault_sram_introspection_token` | Service introspection token, for validating user application tokens |
+| `vault_sram_organisation_api_token` | Organisation API token, for collaboration management |
+
+The last two are optional: without them the application still authenticates users, but token introspection and collaboration management stay disabled.
 
 Generate a secret key:
 

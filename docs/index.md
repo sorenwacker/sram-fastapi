@@ -38,4 +38,5 @@ make deploy
 - Token introspection for CLI/API access
 - User claims extraction (email, name, entitlements, affiliations)
 - Demo application with HTML templates
+- Collaboration management: provision collaborations, invite users, manage admins, members and groups
 - Configuration validation with helpful error messages

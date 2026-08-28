@@ -24,6 +24,13 @@ from sram_fastapi.auth import (
     get_oidc_client,
     get_optional_user,
     get_token_user,
+    grants_feature,
+)
+from sram_fastapi.collaborations import (
+    ServiceGroupIndex,
+    SRAMOrganisationClient,
+    get_organisation_client,
+    get_service_group_index,
 )
 from sram_fastapi.config import Settings, get_settings
 
@@ -92,6 +99,8 @@ def create_pages_router() -> APIRouter:
         request: Request,
         user: Annotated[User | None, Depends(get_optional_user)],
         settings: Annotated[Settings, Depends(get_settings)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        index: Annotated[ServiceGroupIndex, Depends(get_service_group_index)],
     ):
         """Render the home page.
 
@@ -100,8 +109,18 @@ def create_pages_router() -> APIRouter:
         - Authenticated: User identity, access rights, and testing tools
         """
         raw_claims_json = ""
+        features = []
         if user:
             raw_claims_json = json.dumps(user.raw_claims, indent=2, default=str)
+            features = [
+                {
+                    "name": feature,
+                    "group": group.short_name,
+                    "collaboration": group.collaboration,
+                    "granted": await grants_feature(user, settings, feature, client, index),
+                }
+                for feature, group in settings.feature_groups.items()
+            ]
 
         return templates.TemplateResponse(
             request=request,
@@ -110,6 +129,7 @@ def create_pages_router() -> APIRouter:
                 "user": user,
                 "base_url": settings.base_url,
                 "raw_claims_json": raw_claims_json,
+                "features": features,
                 "required_entitlement": DEMO_REQUIRED_ENTITLEMENT,
                 "required_affiliation": DEMO_REQUIRED_AFFILIATION,
                 "version": __version__,

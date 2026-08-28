@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}New collaboration - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>New collaboration</h1>
+    <p class="section-intro">
+        Creates a collaboration in your SRAM organisation and connects this service to it,
+        so its members can log in here.
+    </p>
+    <p class="api-hint">
+        POST /api/collaborations/v1 followed by
+        PUT /api/collaborations_services/v1/connect_collaboration_service/{co_identifier}
+    </p>
+</div>
+
+{% if error %}
+<div class="card" style="border-left: 4px solid #c53030;">
+    <h2 style="color: #c53030;">SRAM rejected the request</h2>
+    <p>{{ error }}</p>
+</div>
+{% endif %}
+
+{% if not configured %}
+<div class="card" style="border-left: 4px solid #d69e2e;">
+    <h2>Not configured</h2>
+    <p>Set <code>SRAM_ORGANISATION_API_TOKEN</code> to create collaborations.</p>
+</div>
+{% elif not service_entity_id %}
+<div class="card" style="border-left: 4px solid #d69e2e;">
+    <h2>Not configured</h2>
+    <p>
+        Set <code>SRAM_SERVICE_ENTITY_ID</code> to the entity ID of this service. Without it a new
+        collaboration cannot be connected to this application, and its members could not log in.
+    </p>
+</div>
+{% else %}
+<div class="card">
+    <form method="post" action="/collaborations/new">
+        <label>Name<input type="text" name="name" required></label>
+        <label>Description<textarea name="description" rows="3" required></textarea></label>
+        <label>Short name<input type="text" name="short_name" placeholder="generated when empty"></label>
+        <label>Website URL<input type="url" name="website_url"></label>
+        <label>Administrators<input type="text" name="administrators" required placeholder="comma separated email addresses"></label>
+        <label>Invitation message<textarea name="message" rows="2"></textarea></label>
+        <label>Expiry date<input type="date" name="expiry_date"></label>
+        <label>Tags<input type="text" name="tags" placeholder="comma separated"></label>
+        <label>Units<input type="text" name="units" placeholder="comma separated"></label>
+        <label class="checkbox"><input type="checkbox" name="disable_join_requests"> Disable join requests</label>
+        <label class="checkbox"><input type="checkbox" name="disclose_member_information" checked> Disclose member names to members</label>
+        <label class="checkbox"><input type="checkbox" name="disclose_email_information"> Disclose member emails to members</label>
+        <button type="submit">Create collaboration</button>
+    </form>
+</div>
+{% endif %}
+
+<p><a href="/collaborations">Back to collaborations</a></p>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .section-intro { color: #718096; margin-top: 0.5rem; }
+    form label { display: block; margin-bottom: 0.75rem; color: #4a5568; font-size: 0.9rem; }
+    form label.checkbox { display: flex; align-items: center; gap: 0.5rem; }
+    form input[type="text"], form input[type="url"], form input[type="date"], form textarea {
+        display: block; width: 100%; margin-top: 0.25rem; padding: 0.5rem;
+        border: 1px solid #cbd5e0; border-radius: 4px; font-size: 0.95rem;
+    }
+    form button {
+        margin-top: 0.5rem; padding: 0.6rem 1.2rem; border: none; border-radius: 4px;
+        background: #3182ce; color: white; font-size: 0.95rem; cursor: pointer;
+    }
+    .api-hint { margin-top: 0.75rem; font-family: monospace; font-size: 0.8rem; color: #a0aec0; }
+</style>
+{% endblock %}
