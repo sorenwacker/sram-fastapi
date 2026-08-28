@@ -230,6 +230,7 @@ def settings() -> Settings:
         sram_organisation_api_token="test-organisation-token",
         sram_service_entity_id="https://service.cloud.example.com",
         collaboration_manager_entitlement=MANAGER_ENTITLEMENT,
+        collaboration_deletion_enabled=True,
         base_url="http://testserver",
     )
 
@@ -903,3 +904,54 @@ class TestConfirmationMarkup:
         scripts = re.findall(r"<script>(.*?)</script>", response.text, re.DOTALL)
         assert scripts
         assert all("alert(1)" not in script for script in scripts)
+
+
+class TestDeletionSwitch:
+    """Tests for the deployment switch that governs collaboration deletion."""
+
+    def test_deletion_is_off_by_default(self):
+        """A deployment that says nothing about deletion does not allow it."""
+        assert (
+            Settings(
+                secret_key="k",
+                sram_oidc_client_id="id",
+                sram_oidc_client_secret="secret",
+            ).collaboration_deletion_enabled
+            is False
+        )
+
+    def test_manager_cannot_delete_when_disabled(self, settings: Settings):
+        """With deletion disabled the route refuses even a manager."""
+        settings.collaboration_deletion_enabled = False
+        fake = FakeClient()
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+        response = http.post(f"/collaborations/{CO_IDENTIFIER}/delete")
+        assert response.status_code == 403
+        assert fake.deleted == []
+
+    def test_page_explains_why_deletion_is_unavailable(self, settings: Settings):
+        """The detail page names the setting rather than hiding the capability."""
+        settings.collaboration_deletion_enabled = False
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), FakeClient())
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert "COLLABORATION_DELETION_ENABLED" in response.text
+        assert f"/collaborations/{CO_IDENTIFIER}/delete" not in response.text
+
+    def test_rollback_still_deletes_when_the_switch_is_off(self, settings: Settings):
+        """A collaboration that could not be connected is still removed again."""
+        settings.collaboration_deletion_enabled = False
+        fake = FakeClient()
+        fake.connect_error = SRAMAPIError("connect failed")
+        http = build_client(settings, user_with(MANAGER_ENTITLEMENT), fake)
+
+        response = http.post(
+            "/collaborations/new",
+            data={
+                "name": "Cumulus research group",
+                "description": "Cumulus research group.",
+                "administrators": "jdoe@uniharderwijk.nl",
+            },
+        )
+
+        assert response.status_code == 502
+        assert fake.deleted == [CO_IDENTIFIER]

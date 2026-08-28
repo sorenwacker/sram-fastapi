@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     sram_organisation_api_token: str | None = None
     sram_service_entity_id: str | None = None
     collaboration_manager_entitlement: str | None = None
+    # Deleting a collaboration destroys its memberships and cannot be undone,
+    # so it stays off unless a deployment asks for it
+    collaboration_deletion_enabled: bool = False
 
     # Session settings
     session_cookie_name: str = "session"

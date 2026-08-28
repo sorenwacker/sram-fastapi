@@ -213,7 +213,15 @@
     {% endif %}
 </div>
 
-{% if is_manager %}
+{% if is_manager and not deletion_enabled %}
+<div class="card" style="border-left: 4px solid #d69e2e;">
+    <h2>Delete collaboration</h2>
+    <p class="section-intro">
+        Deletion is switched off in this deployment. Set <code>COLLABORATION_DELETION_ENABLED</code>
+        to enable it. It destroys the collaboration and every membership in it, and cannot be undone.
+    </p>
+</div>
+{% elif is_manager %}
 <div class="card" style="border-left: 4px solid #c53030;">
     <h2>Delete collaboration</h2>
     <p class="section-intro">

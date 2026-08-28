@@ -386,6 +386,13 @@ def create_collaborations_router() -> APIRouter:
             return RedirectResponse("/auth/login", status_code=303)
         _require_manager(user, settings)
 
+        if not settings.collaboration_deletion_enabled:
+            raise AuthorizationError(
+                required=["COLLABORATION_DELETION_ENABLED"],
+                actual=[],
+                check_type="setting",
+            )
+
         await client.delete_collaboration(identifier)
         return RedirectResponse("/collaborations", status_code=303)
 
@@ -671,6 +678,7 @@ def create_collaborations_router() -> APIRouter:
                 "invitations": invitations,
                 "is_admin": is_admin,
                 "is_manager": is_manager,
+                "deletion_enabled": settings.collaboration_deletion_enabled,
                 "can_manage": can_manage,
                 "hidden_label": HIDDEN,
             },
