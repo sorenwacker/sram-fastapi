@@ -955,3 +955,29 @@ class TestDeletionSwitch:
 
         assert response.status_code == 502
         assert fake.deleted == [CO_IDENTIFIER]
+
+
+class TestAdminIdentityMatching:
+    """Tests for matching the session user against a SRAM membership."""
+
+    def test_same_hash_different_host_is_the_same_person(self, settings: Settings):
+        """A proxy subject and an API uid that share their identifier match."""
+        user = user_with(MEMBER, sub="admin-uid@sram.surf.nl")
+        http = build_client(settings, user, FakeClient())
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert response.status_code == 200
+        assert "adoe@uniharderwijk.nl" in response.text
+
+    def test_different_identifier_is_not_an_admin(self, settings: Settings):
+        """A different identifier does not become an admin through the host suffix."""
+        user = user_with(MEMBER, sub="someone-else@sram.surf.nl")
+        http = build_client(settings, user, FakeClient())
+        response = http.get(f"/collaborations/{CO_IDENTIFIER}")
+        assert "adoe@uniharderwijk.nl" not in response.text
+
+    def test_identifier_without_a_host_still_matches(self, settings: Settings):
+        """A uid that carries no host, such as urn:jdoe, is compared whole."""
+        collaboration_admin = Membership(uid="urn:jdoe", role="admin")
+        assert Collaboration(
+            identifier="co", name="co", memberships=[collaboration_admin]
+        ).admin_uids() == {"urn:jdoe"}

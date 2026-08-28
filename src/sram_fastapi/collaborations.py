@@ -62,6 +62,24 @@ def collaboration_urns(entitlements: list[str] | None) -> set[str]:
     return urns
 
 
+def identifier_of(sram_identifier: str) -> str:
+    """Return the identifying part of a SRAM identifier, without its host.
+
+    SRAM issues the same person different hosts depending on where the identifier comes
+    from: the login proxy sends a subject ending in ``@sram.surf.nl``, while the
+    organisation API returns a uid ending in ``@sram.eduteams.org``. The part before the
+    host is the identifier proper and is what the two have in common. An identifier that
+    carries no host, such as ``urn:jdoe``, is returned unchanged.
+
+    Args:
+        sram_identifier: A subject claim or a SRAM uid.
+
+    Returns:
+        The identifier without its host part.
+    """
+    return sram_identifier.split("@", 1)[0]
+
+
 def groups_of(entitlements: list[str] | None) -> set[tuple[str, str]]:
     """Return the groups an entitlement list implies, as collaboration and short name.
 

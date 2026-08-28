@@ -32,6 +32,7 @@ from sram_fastapi.collaborations import (
     collaboration_urns,
     entitlement_for,
     get_organisation_client,
+    identifier_of,
 )
 from sram_fastapi.config import Settings, get_settings
 
@@ -70,10 +71,14 @@ def _is_member(user: User, collaboration: Collaboration) -> bool:
 def _is_collaboration_admin(user: User, collaboration: Collaboration) -> bool:
     """Whether the user is an administrator of the collaboration.
 
-    The role is read from the collaboration's own membership list, matching the
-    OIDC subject against the SRAM uid.
+    The role is read from the collaboration's own membership list. The OIDC subject and
+    the uid the organisation API returns describe the same person with different hosts,
+    so the comparison is on the identifier itself rather than on the whole string.
     """
-    return user.sub in collaboration.admin_uids()
+    subject = identifier_of(user.sub)
+    if not subject:
+        return False
+    return any(identifier_of(uid) == subject for uid in collaboration.admin_uids())
 
 
 def _member_views(collaboration: Collaboration, reveal: bool) -> list[MemberView]:
