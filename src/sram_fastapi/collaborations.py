@@ -11,6 +11,7 @@ deciding who may invoke which method.
 """
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
@@ -187,11 +188,16 @@ class Group:
     short_name: str | None = None
     description: str | None = None
     global_urn: str | None = None
+    is_service_group: bool = False
     member_uids: list[str] = field(default_factory=list)
 
     @classmethod
     def from_api(cls, data: dict) -> "Group":
-        """Create a group from a SRAM group object."""
+        """Create a group from a SRAM group object.
+
+        A group SRAM provisioned for a service carries ``service_group_id``. That is what
+        distinguishes it from a group a collaboration admin created, whatever it is named.
+        """
         memberships = data.get("collaboration_memberships") or []
         return cls(
             identifier=data.get("identifier", ""),
@@ -199,6 +205,7 @@ class Group:
             short_name=data.get("short_name"),
             description=data.get("description"),
             global_urn=data.get("global_urn"),
+            is_service_group=data.get("service_group_id") is not None,
             member_uids=[
                 (m.get("user") or {}).get("uid")
                 for m in memberships
@@ -802,3 +809,76 @@ def get_organisation_client(
 ) -> SRAMOrganisationClient:
     """Get the organisation API client as a FastAPI dependency."""
     return SRAMOrganisationClient(settings)
+
+
+class ServiceGroupIndex:
+    """Where each service group short name exists, according to SRAM.
+
+    A group's short name is chosen by whoever creates the group, so it says nothing about
+    who owns it. The organisation API does: a group SRAM provisioned for a service carries
+    ``service_group_id``, and service abbreviations are unique, so a service group's short
+    name identifies the service that owns it. This index caches, per short name, the
+    collaborations where such a group genuinely exists.
+
+    The index covers the organisation the API token belongs to. Collaborations of other
+    organisations are not visible to it and therefore never verified.
+    """
+
+    def __init__(self, ttl_seconds: float = 300.0):
+        """Initialise the index.
+
+        Args:
+            ttl_seconds: How long a lookup is reused before SRAM is asked again.
+        """
+        self._ttl = ttl_seconds
+        self._bindings: dict[str, set[str]] = {}
+        self._expires_at = 0.0
+
+    async def bindings(self, client: "SRAMOrganisationClient") -> dict[str, set[str]]:
+        """Return the collaborations where each service group short name exists.
+
+        A failure to reach SRAM returns nothing rather than the last known answer, so a
+        name is never trusted on the strength of an unverifiable claim.
+
+        Args:
+            client: The organisation API client.
+
+        Returns:
+            A mapping of group short name to collaboration global URNs.
+        """
+        if not client.configured:
+            return {}
+
+        now = time.monotonic()
+        if now < self._expires_at:
+            return self._bindings
+
+        try:
+            organisation = await client.get_organisation()
+        except SRAMAPIError as exc:
+            logger.error(
+                "Could not verify service groups with SRAM, so no feature is granted by "
+                "group name alone: %s",
+                exc,
+            )
+            return {}
+
+        bindings: dict[str, set[str]] = {}
+        for collaboration in organisation.collaborations:
+            if not collaboration.global_urn:
+                continue
+            for group in collaboration.groups:
+                if group.is_service_group and group.short_name:
+                    bindings.setdefault(group.short_name, set()).add(collaboration.global_urn)
+
+        self._bindings = bindings
+        self._expires_at = now + self._ttl
+        return bindings
+
+
+_service_group_index = ServiceGroupIndex()
+
+
+def get_service_group_index() -> ServiceGroupIndex:
+    """Get the shared service group index as a FastAPI dependency."""
+    return _service_group_index

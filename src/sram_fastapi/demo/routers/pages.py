@@ -26,6 +26,12 @@ from sram_fastapi.auth import (
     get_token_user,
     grants_feature,
 )
+from sram_fastapi.collaborations import (
+    ServiceGroupIndex,
+    SRAMOrganisationClient,
+    get_organisation_client,
+    get_service_group_index,
+)
 from sram_fastapi.config import Settings, get_settings
 
 from .authorization import DEMO_REQUIRED_AFFILIATION, DEMO_REQUIRED_ENTITLEMENT
@@ -93,6 +99,8 @@ def create_pages_router() -> APIRouter:
         request: Request,
         user: Annotated[User | None, Depends(get_optional_user)],
         settings: Annotated[Settings, Depends(get_settings)],
+        client: Annotated[SRAMOrganisationClient, Depends(get_organisation_client)],
+        index: Annotated[ServiceGroupIndex, Depends(get_service_group_index)],
     ):
         """Render the home page.
 
@@ -109,7 +117,7 @@ def create_pages_router() -> APIRouter:
                     "name": feature,
                     "group": group.short_name,
                     "collaboration": group.collaboration,
-                    "granted": grants_feature(user, settings, feature),
+                    "granted": await grants_feature(user, settings, feature, client, index),
                 }
                 for feature, group in settings.feature_groups.items()
             ]

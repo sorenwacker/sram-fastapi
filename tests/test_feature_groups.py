@@ -286,3 +286,147 @@ class TestCollaborationScopedFeatures:
         held = "urn:mace:surf.nl:sram:group:uva:climate:group1"
         http = self.build("demo=tudelft:sramdemo/group1", user_with(held))
         assert http.get("/x").status_code == 403
+
+
+class TestVerifiedServiceGroups:
+    """Tests for trusting an unbound feature once SRAM confirms the group's origin."""
+
+    def index_client(self, groups: list[tuple[str, str, bool]]):
+        """Build a stub organisation client exposing the given groups.
+
+        Args:
+            groups: Tuples of collaboration global URN, group short name, and whether
+                SRAM provisioned the group for a service.
+        """
+        from sram_fastapi.collaborations import Collaboration, Group, Organisation
+
+        collaborations: dict[str, Collaboration] = {}
+        for urn, short_name, is_service_group in groups:
+            collaboration = collaborations.setdefault(
+                urn, Collaboration(identifier=urn, name=urn, global_urn=urn)
+            )
+            collaboration.groups.append(
+                Group(
+                    identifier=f"{urn}/{short_name}",
+                    name=short_name,
+                    short_name=short_name,
+                    is_service_group=is_service_group,
+                )
+            )
+
+        class StubClient:
+            configured = True
+
+            async def get_organisation(self) -> Organisation:
+                return Organisation(
+                    identifier="org", name="org", collaborations=list(collaborations.values())
+                )
+
+        return StubClient()
+
+    def build(self, feature_groups: str, user: User, client) -> TestClient:
+        """Build an app whose route requires the demo feature."""
+        from sram_fastapi.collaborations import (
+            ServiceGroupIndex,
+            get_organisation_client,
+            get_service_group_index,
+        )
+
+        app = FastAPI()
+        settings = make_settings(feature_groups)
+
+        @app.get("/x")
+        async def route(caller: User = Depends(require_group("demo"))) -> dict:
+            return {"ok": True}
+
+        @app.exception_handler(AuthorizationError)
+        async def handler(request, exc: AuthorizationError):
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+        app.dependency_overrides[get_settings] = lambda: settings
+        app.dependency_overrides[get_current_user] = lambda: user
+        app.dependency_overrides[get_organisation_client] = lambda: client
+        index = ServiceGroupIndex()
+        app.dependency_overrides[get_service_group_index] = lambda: index
+        return TestClient(app)
+
+    def test_verified_service_group_grants_without_a_binding(self):
+        """A group SRAM provisioned for a service is trusted by short name alone."""
+        held = "urn:mace:surf.nl:sram:group:uva:climate:sramdemo-editors"
+        client = self.index_client([("uva:climate", "sramdemo-editors", True)])
+        assert (
+            self.build("demo=sramdemo-editors", user_with(held), client).get("/x").status_code
+            == 200
+        )
+
+    def test_ordinary_group_of_the_same_name_grants_nothing(self):
+        """A group a collaboration admin created is not a service group."""
+        held = "urn:mace:surf.nl:sram:group:uva:climate:sramdemo-editors"
+        client = self.index_client([("uva:climate", "sramdemo-editors", False)])
+        assert (
+            self.build("demo=sramdemo-editors", user_with(held), client).get("/x").status_code
+            == 403
+        )
+
+    def test_service_group_elsewhere_does_not_cover_another_collaboration(self):
+        """Verification is per collaboration, not a global licence for the name."""
+        held = "urn:mace:surf.nl:sram:group:uva:climate:sramdemo-editors"
+        client = self.index_client([("tudelft:sramdemo", "sramdemo-editors", True)])
+        assert (
+            self.build("demo=sramdemo-editors", user_with(held), client).get("/x").status_code
+            == 403
+        )
+
+    def test_unverifiable_deployment_denies(self):
+        """Without the organisation API nothing can be verified, so nothing is granted."""
+
+        class UnconfiguredClient:
+            configured = False
+
+            async def get_organisation(self):
+                raise AssertionError("must not be called")
+
+        held = "urn:mace:surf.nl:sram:group:uva:climate:sramdemo-editors"
+        assert (
+            self.build("demo=sramdemo-editors", user_with(held), UnconfiguredClient())
+            .get("/x")
+            .status_code
+            == 403
+        )
+
+    def test_sram_failure_denies_rather_than_grants(self):
+        """A failure to verify is not a reason to trust the name."""
+        from sram_fastapi.collaborations import SRAMAPIError
+
+        class FailingClient:
+            configured = True
+
+            async def get_organisation(self):
+                raise SRAMAPIError("SRAM unavailable")
+
+        held = "urn:mace:surf.nl:sram:group:uva:climate:sramdemo-editors"
+        assert (
+            self.build("demo=sramdemo-editors", user_with(held), FailingClient())
+            .get("/x")
+            .status_code
+            == 403
+        )
+
+    def test_binding_still_works_without_verification(self):
+        """A feature bound to a collaboration needs no organisation API."""
+
+        class UnconfiguredClient:
+            configured = False
+
+            async def get_organisation(self):
+                raise AssertionError("must not be called")
+
+        held = "urn:mace:surf.nl:sram:group:tudelft:sramdemo:group1"
+        assert (
+            self.build("demo=tudelft:sramdemo/group1", user_with(held), UnconfiguredClient())
+            .get("/x")
+            .status_code
+            == 200
+        )

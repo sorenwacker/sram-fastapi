@@ -133,7 +133,17 @@ SRAM_FEATURE_GROUPS=editor=tudelft:sramdemo/sramdemo-editors,reviewer=tudelft:sr
 
 Each entry names the collaboration the group belongs to and the group's short name as it appears in the entitlement. The feature is granted to members of that group in that collaboration, and the same short name in any other collaboration grants nothing.
 
-An entry that names only a short name parses but grants nothing, and says so in the log. A short name is chosen by whoever creates the group, so on its own it is not a capability: an admin of any collaboration connected to this service could create a group under that name and hand the feature to their members. See the next section for what would make a name trustworthy on its own, and why this application does not yet rely on it.
+An entry may also name only a short name:
+
+```bash
+SRAM_FEATURE_GROUPS=editor=sramdemo-editors
+```
+
+That form is granted only where SRAM confirms the group's origin. The application asks the organisation API which collaborations hold a *service group* of that name — a group carrying `service_group_id`, meaning SRAM provisioned it for a service rather than a collaboration admin creating it — and grants the feature in those collaborations alone. The answer is cached for five minutes.
+
+The distinction matters because a short name is chosen by whoever creates the group. Without verification, an admin of any collaboration connected to this service could create a group under the configured name and hand the feature to their members. Verification is refused, not assumed: with no organisation API token, or when SRAM cannot be reached, an unbound feature grants nothing and the reason is logged.
+
+Verification covers the organisation the API token belongs to. A collaboration in another organisation is invisible to it, so a feature that must work there is bound explicitly.
 
 The check fails closed. Requiring a feature that configuration does not define denies every user and logs the missing mapping, rather than falling back to the feature name as a group. A typo therefore locks people out, which is visible, instead of granting access through a group nobody meant to name.
 
@@ -185,7 +195,9 @@ This leaves one case the application has to handle itself, and it is the reason 
 
 The prefix looks like it should be enough. A name of the form `<abbreviation>-<group>` is created by SRAM, and in a collaboration where the corresponding service group exists, the name is occupied and a collaboration admin cannot take it. But that holds only for names that correspond to a service group that really exists. If a deployment configures `sramdemo-editors` while the service group is called `editor`, or before it is created at all, the name is unclaimed everywhere, and an admin of any collaboration connected to this service can create an ordinary group under it. The prefix is a naming convention, not proof of origin, and comparing strings cannot tell the two apart.
 
-Establishing origin needs data the application does not have at login: the group's `service_group_id`, which the organisation API returns and which marks the groups SRAM provisioned for a service. Until the application resolves configured features against that, a name alone is not trusted, and each feature is bound to the collaboration whose group grants it. The cost is a configuration entry per collaboration; the alternative is trusting a string that anyone connected to the service can create.
+Establishing origin needs data the claim does not carry: the group's `service_group_id`, which the organisation API returns on every group of every collaboration in the organisation, and which marks the ones SRAM provisioned for a service. The application reads it, so an unbound feature is granted where SRAM says a service group of that name exists, and refused everywhere else. Service abbreviations are unique, so a service group's short name identifies the service that owns it.
+
+Two limits follow from where that data comes from. It needs the organisation API token, so a deployment without one can only use bound features. And it sees one organisation, so a collaboration elsewhere is never verified and has to be named explicitly.
 
 ## Handling Authorization Errors
 
