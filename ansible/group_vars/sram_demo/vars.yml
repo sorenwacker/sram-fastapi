@@ -18,7 +18,8 @@ sram_service_entity_id: ""
 collaboration_manager_entitlement: ""
 # The organisation API token itself lives in vault.yml as vault_sram_organisation_api_token
 # Features granted by group membership, as feature=group_short_name pairs
-sram_feature_groups: ""
+# The two groups that exist in tudelft:sramdemo; a bare name is feature and group alike
+sram_feature_groups: "sramdemogroup, group1"
 
 # Gunicorn settings
 gunicorn_workers: 4
