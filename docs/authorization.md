@@ -128,21 +128,12 @@ Features are mapped to group short names in configuration, so a deployment can p
 
 ```bash
 # .env
-SRAM_SERVICE_ABBREVIATION=sramdemo
-SRAM_FEATURE_GROUPS=editor=sramdemo-editors,reviewer=sramdemo-reviewers
+SRAM_FEATURE_GROUPS=editor=tudelft:sramdemo/sramdemo-editors,reviewer=tudelft:sramdemo/sramdemo-reviewers
 ```
 
-A bare name means the feature and the group share a name, so `SRAM_FEATURE_GROUPS=sramdemo-editors` defines a feature of that name.
+Each entry names the collaboration the group belongs to and the group's short name as it appears in the entitlement. The feature is granted to members of that group in that collaboration, and the same short name in any other collaboration grants nothing.
 
-The configured value is the short name **as it appears in the entitlement**, which for a service group includes the service abbreviation. A name given this way is trusted in every collaboration, so the check requires it to start with `SRAM_SERVICE_ABBREVIATION` followed by a hyphen: only SRAM creates those, when it provisions this service's groups. A name without that prefix is refused, and the reason is logged.
-
-To use a group this service does not own, bind it to the one collaboration it belongs to:
-
-```bash
-SRAM_FEATURE_GROUPS=demo=tudelft:sramdemo/sramdemogroup
-```
-
-The feature is then granted only to members of that group in that collaboration. The same short name in any other collaboration grants nothing.
+An entry that names only a short name parses but grants nothing, and says so in the log. A short name is chosen by whoever creates the group, so on its own it is not a capability: an admin of any collaboration connected to this service could create a group under that name and hand the feature to their members. See the next section for what would make a name trustworthy on its own, and why this application does not yet rely on it.
 
 The check fails closed. Requiring a feature that configuration does not define denies every user and logs the missing mapping, rather than falling back to the feature name as a group. A typo therefore locks people out, which is visible, instead of granting access through a group nobody meant to name.
 
@@ -190,7 +181,11 @@ This is why a feature maps to the prefixed name. Configuring `editor=editors` wo
 
 A second boundary limits the damage of any name collision that does occur. SRAM releases only the memberships that concern the application being logged into: "Applications only receive attributes which concern the collaboration(s) to which the application is connected." A group named after this application in a collaboration it is not connected to never appears in a claim it receives.
 
-This leaves one case the application has to handle itself. A short name is chosen by whoever creates the group, so an unqualified short name is not a capability: a collaboration admin elsewhere could create a group by the same name and hand the feature to their members. The rule above closes it. A name is trusted across collaborations only when it carries this service's abbreviation, which SRAM applies when provisioning and which a collaboration admin cannot claim, because a connected service's groups already occupy those names. Any other group has to be named together with its collaboration, and grants the feature only there.
+This leaves one case the application has to handle itself, and it is the reason every feature has to name its collaboration.
+
+The prefix looks like it should be enough. A name of the form `<abbreviation>-<group>` is created by SRAM, and in a collaboration where the corresponding service group exists, the name is occupied and a collaboration admin cannot take it. But that holds only for names that correspond to a service group that really exists. If a deployment configures `sramdemo-editors` while the service group is called `editor`, or before it is created at all, the name is unclaimed everywhere, and an admin of any collaboration connected to this service can create an ordinary group under it. The prefix is a naming convention, not proof of origin, and comparing strings cannot tell the two apart.
+
+Establishing origin needs data the application does not have at login: the group's `service_group_id`, which the organisation API returns and which marks the groups SRAM provisioned for a service. Until the application resolves configured features against that, a name alone is not trusted, and each feature is bound to the collaboration whose group grants it. The cost is a configuration entry per collaboration; the alternative is trusting a string that anyone connected to the service can create.
 
 ## Handling Authorization Errors
 

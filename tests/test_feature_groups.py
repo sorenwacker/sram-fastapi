@@ -19,14 +19,13 @@ OTHER_APP_EDITORS = "urn:mace:surf.nl:sram:group:tudelft:sramdemo:otherapp-edito
 COLLABORATION = "urn:mace:surf.nl:sram:group:tudelft:sramdemo"
 
 
-def make_settings(feature_groups: str, abbreviation: str = "sramdemo") -> Settings:
+def make_settings(feature_groups: str) -> Settings:
     """Build settings with a feature group mapping."""
     return Settings(
         secret_key="test-secret-key",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
         sram_feature_groups=feature_groups,
-        sram_service_abbreviation=abbreviation,
     )
 
 
@@ -40,10 +39,14 @@ class TestFeatureGroupSettings:
 
     def test_pairs(self):
         """Each pair maps a feature name to a group short name."""
-        settings = make_settings("editor=sramdemo-editors, reviewer=sramdemo-reviewers")
+        settings = make_settings(
+            "editor=tudelft:sramdemo/sramdemo-editors, reviewer=tudelft:sramdemo/sramdemo-reviewers"
+        )
         assert settings.feature_groups == {
-            "editor": FeatureGroup(short_name="sramdemo-editors"),
-            "reviewer": FeatureGroup(short_name="sramdemo-reviewers"),
+            "editor": FeatureGroup(short_name="sramdemo-editors", collaboration="tudelft:sramdemo"),
+            "reviewer": FeatureGroup(
+                short_name="sramdemo-reviewers", collaboration="tudelft:sramdemo"
+            ),
         }
 
     def test_bare_name_maps_to_itself(self):
@@ -79,10 +82,10 @@ class TestGroupsOf:
 class TestRequireGroup:
     """Tests for the require_group dependency."""
 
-    def build(self, feature_groups: str, user: User, abbreviation: str = "sramdemo") -> TestClient:
+    def build(self, feature_groups: str, user: User) -> TestClient:
         """Build an app whose route requires the editor feature."""
         app = FastAPI()
-        settings = make_settings(feature_groups, abbreviation=abbreviation)
+        settings = make_settings(feature_groups)
 
         @app.get("/reports")
         async def reports(caller: User = Depends(require_group("editor"))) -> dict:
@@ -100,29 +103,29 @@ class TestRequireGroup:
 
     def test_member_of_the_group_is_allowed(self):
         """A member of the mapped group reaches the route."""
-        http = self.build("editor=sramdemo-editors", user_with(EDITORS))
+        http = self.build("editor=tudelft:sramdemo/sramdemo-editors", user_with(EDITORS))
         assert http.get("/reports").status_code == 200
 
     def test_non_member_is_refused(self):
         """A user without the group is refused."""
-        http = self.build("editor=sramdemo-editors", user_with(COLLABORATION))
+        http = self.build("editor=tudelft:sramdemo/sramdemo-editors", user_with(COLLABORATION))
         assert http.get("/reports").status_code == 403
 
     def test_another_application_group_does_not_grant_the_feature(self):
         """A same-named group belonging to another service grants nothing."""
-        http = self.build("editor=sramdemo-editors", user_with(OTHER_APP_EDITORS))
+        http = self.build("editor=tudelft:sramdemo/sramdemo-editors", user_with(OTHER_APP_EDITORS))
         assert http.get("/reports").status_code == 403
 
     def test_unconfigured_feature_denies_everyone(self):
         """A feature the deployment does not define fails closed."""
-        http = self.build("reviewer=sramdemo-reviewers", user_with(EDITORS))
+        http = self.build("reviewer=tudelft:sramdemo/sramdemo-reviewers", user_with(EDITORS))
         assert http.get("/reports").status_code == 403
 
-    def test_group_in_any_collaboration_grants_the_feature(self):
-        """The same group in another collaboration grants the feature there too."""
+    def test_group_in_another_collaboration_grants_nothing(self):
+        """The same group in a collaboration the feature is not bound to grants nothing."""
         other = "urn:mace:surf.nl:sram:group:uva:climate:sramdemo-editors"
-        http = self.build("editor=sramdemo-editors", user_with(other))
-        assert http.get("/reports").status_code == 200
+        http = self.build("editor=tudelft:sramdemo/sramdemo-editors", user_with(other))
+        assert http.get("/reports").status_code == 403
 
 
 class TestRequireGroupCombinations:
@@ -131,7 +134,9 @@ class TestRequireGroupCombinations:
     def check(self, dependency, user: User) -> int:
         """Return the status code of a route guarded by the dependency."""
         app = FastAPI()
-        settings = make_settings("editor=sramdemo-editors, reviewer=sramdemo-reviewers")
+        settings = make_settings(
+            "editor=tudelft:sramdemo/sramdemo-editors, reviewer=tudelft:sramdemo/sramdemo-reviewers"
+        )
 
         @app.get("/x")
         async def route(caller: User = Depends(dependency)) -> dict:
@@ -174,7 +179,7 @@ def test_demo_exposes_a_route_per_configured_feature(feature: str):
         secret_key="test-secret-key",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
-        sram_feature_groups="editor=sramdemo-editors, reviewer=sramdemo-reviewers",
+        sram_feature_groups="editor=tudelft:sramdemo/e, reviewer=tudelft:sramdemo/r",
     )
     routes = {route.path for route in create_demo_app(settings).routes}
     assert f"/demo/features/{feature}" in routes
@@ -189,7 +194,9 @@ def test_home_page_lists_configured_features():
         secret_key="test-secret-key",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
-        sram_feature_groups="editor=sramdemo-editors, reviewer=sramdemo-reviewers",
+        sram_feature_groups=(
+            "editor=tudelft:sramdemo/sramdemo-editors, reviewer=tudelft:sramdemo/sramdemo-reviewers"
+        ),
     )
     app = create_demo_app(settings)
     app.dependency_overrides[get_optional_user] = lambda: user_with(EDITORS)
@@ -202,13 +209,13 @@ def test_home_page_lists_configured_features():
     assert "member" in page
 
 
-class TestUnprefixedGroupsAreNotTrusted:
-    """Tests that a short name anyone could choose cannot grant a feature."""
+class TestUnboundGroupsAreNotTrusted:
+    """Tests that a group name alone never grants a feature."""
 
-    def build(self, feature_groups: str, user: User, abbreviation: str = "sramdemo") -> TestClient:
+    def build(self, feature_groups: str, user: User) -> TestClient:
         """Build an app whose route requires the demo feature."""
         app = FastAPI()
-        settings = make_settings(feature_groups, abbreviation=abbreviation)
+        settings = make_settings(feature_groups)
 
         @app.get("/x")
         async def route(caller: User = Depends(require_group("demo"))) -> dict:
@@ -224,26 +231,26 @@ class TestUnprefixedGroupsAreNotTrusted:
         app.dependency_overrides[get_current_user] = lambda: user
         return TestClient(app)
 
-    def test_group_without_the_service_prefix_grants_nothing(self):
-        """An ordinary group name is not trusted across collaborations."""
+    def test_ordinary_group_name_grants_nothing(self):
+        """A name anyone could choose is not a capability."""
         held = "urn:mace:surf.nl:sram:group:tudelft:sramdemo:group1"
         assert self.build("demo=group1", user_with(held)).get("/x").status_code == 403
 
-    def test_prefixed_group_is_trusted_anywhere(self):
-        """A service group carries this service's abbreviation and is trusted."""
+    def test_service_shaped_name_grants_nothing_either(self):
+        """A name that merely looks like this service's own group is still unbound.
+
+        SRAM prefixes the service abbreviation to the groups it provisions, but nothing
+        verifies that a configured name belongs to a real service group, so a collaboration
+        admin could create a group under an unclaimed name of that shape.
+        """
         held = "urn:mace:surf.nl:sram:group:uva:climate:sramdemo-editors"
-        assert self.build("demo=sramdemo-editors", user_with(held)).get("/x").status_code == 200
+        assert self.build("demo=sramdemo-editors", user_with(held)).get("/x").status_code == 403
 
-    def test_prefix_of_another_service_grants_nothing(self):
-        """Another service's group is not this service's group."""
-        held = "urn:mace:surf.nl:sram:group:tudelft:sramdemo:otherapp-editors"
-        assert self.build("demo=otherapp-editors", user_with(held)).get("/x").status_code == 403
-
-    def test_unset_abbreviation_denies_unscoped_names(self):
-        """Without a configured abbreviation no unscoped name can be trusted."""
-        held = "urn:mace:surf.nl:sram:group:tudelft:sramdemo:sramdemo-editors"
-        http = self.build("demo=sramdemo-editors", user_with(held), abbreviation="")
-        assert http.get("/x").status_code == 403
+    def test_binding_the_same_group_grants_the_feature(self):
+        """Naming the collaboration the group belongs to is what grants it."""
+        held = "urn:mace:surf.nl:sram:group:uva:climate:sramdemo-editors"
+        http = self.build("demo=uva:climate/sramdemo-editors", user_with(held))
+        assert http.get("/x").status_code == 200
 
 
 class TestCollaborationScopedFeatures:

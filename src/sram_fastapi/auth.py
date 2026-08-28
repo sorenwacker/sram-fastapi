@@ -399,13 +399,13 @@ def _describe_feature(settings: Settings, feature: str) -> str:
 def grants_feature(user: User, settings: Settings, feature: str) -> bool:
     """Whether the user holds the group that grants a feature.
 
-    A feature bound to a collaboration is granted only by that collaboration's group. An
-    unbound feature is granted by the short name in any collaboration, which is only
-    sound when this service owns the name: SRAM prefixes the service abbreviation to
-    every group it provisions for a service, and a collaboration admin cannot create a
-    group under a name a connected service already occupies. A short name without that
-    prefix could be chosen by any collaboration admin, so it is refused rather than
-    trusted across collaborations.
+    A feature is granted only by the group named in the collaboration it was bound to.
+    A short name on its own is not a capability: it is chosen by whoever creates the
+    group, so an admin of any collaboration connected to this service could create a
+    group under that name and hand the feature to their members. SRAM does prefix the
+    service abbreviation to the groups it provisions for a service, but nothing here
+    establishes that a configured name belongs to a real service group rather than to an
+    unclaimed name of the same shape, so an unbound feature is refused.
 
     Args:
         user: The authenticated user.
@@ -428,20 +428,16 @@ def grants_feature(user: User, settings: Settings, feature: str) -> bool:
     if group.collaboration:
         return (group.collaboration, group.short_name) in held
 
-    abbreviation = settings.sram_service_abbreviation
-    if not abbreviation or not group.short_name.startswith(f"{abbreviation}-"):
-        logger.error(
-            "Feature '%s' names the group '%s', which does not belong to this service. "
-            "Name a service group, which SRAM prefixes with '%s-', or bind the feature "
-            "to one collaboration as 'collaboration_urn/%s'.",
-            feature,
-            group.short_name,
-            abbreviation or "<SRAM_SERVICE_ABBREVIATION>",
-            group.short_name,
-        )
-        return False
-
-    return any(short_name == group.short_name for _, short_name in held)
+    logger.error(
+        "Feature '%s' names the group '%s' without a collaboration, so it grants nothing. "
+        "Bind it to the collaboration the group belongs to, as "
+        "SRAM_FEATURE_GROUPS=%s=<organisation>:<collaboration>/%s.",
+        feature,
+        group.short_name,
+        feature,
+        group.short_name,
+    )
+    return False
 
 
 def require_group(*features: str, require_all: bool = False) -> Callable:

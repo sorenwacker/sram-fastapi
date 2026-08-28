@@ -18,8 +18,6 @@ sram_service_entity_id: ""
 collaboration_manager_entitlement: ""
 # The organisation API token itself lives in vault.yml as vault_sram_organisation_api_token
 # Features granted by group membership, as feature=group_short_name pairs
-# Abbreviation of this service in SRAM, prefixed to the groups SRAM provisions for it
-sram_service_abbreviation: ""
 # The two groups that exist in tudelft:sramdemo. Neither belongs to this service, so
 # each is bound to that collaboration: the same name elsewhere grants nothing.
 sram_feature_groups: "sramdemogroup=tudelft:sramdemo/sramdemogroup, group1=tudelft:sramdemo/group1"

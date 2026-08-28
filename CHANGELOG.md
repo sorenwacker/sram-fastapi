@@ -8,7 +8,7 @@ All notable changes to this project are documented in this file.
 
 - Collaboration management through the SRAM organisation API: provisioning collaborations, inviting users by email with an intended role, promoting and demoting admins, removing members, managing groups and their membership, and connecting or disconnecting this service. Every capability has a control in the demo application at `/collaborations`.
 - `SRAMOrganisationClient` in `sram_fastapi.collaborations`, covering the organisation API with typed results and a typed error hierarchy.
-- `require_group`, which grants a feature to members of a SRAM group addressed by its short name, so one rule serves every collaboration the service is connected to. Features are mapped in `SRAM_FEATURE_GROUPS`, and a feature the deployment does not define is denied to everyone.
+- `require_group`, which grants a feature to members of a named group in a named collaboration. Features are mapped in `SRAM_FEATURE_GROUPS` as `feature=collaboration/group`. A feature the deployment does not define, or one that names a group without its collaboration, is denied to everyone: a group short name is chosen by whoever creates the group, so on its own it is not a capability.
 - Settings `SRAM_API_BASE_URL`, `SRAM_ORGANISATION_API_TOKEN`, `SRAM_SERVICE_ENTITY_ID`, `COLLABORATION_MANAGER_ENTITLEMENT`, `COLLABORATION_DELETION_ENABLED` and `SRAM_FEATURE_GROUPS`. Each is optional; a missing value disables the part that depends on it and the page names what is missing.
 - Documentation: `docs/collaboration-management.md`, and a section in `docs/authorization.md` on granting features through groups.
 
