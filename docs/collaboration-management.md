@@ -59,8 +59,21 @@ Because provisioning is two calls, it can fail halfway. If the collaboration is 
 | `SRAM_ORGANISATION_API_TOKEN` | unset | Organisation API token. Collaboration management is disabled while this is unset |
 | `SRAM_SERVICE_ENTITY_ID` | unset | Entity ID of this service, used to connect it to a newly created collaboration. Provisioning is disabled while this is unset |
 | `COLLABORATION_MANAGER_ENTITLEMENT` | unset | Entitlement a user must hold to provision collaborations. Provisioning is disabled while this is unset |
+| `COLLABORATION_DELETION_ENABLED` | `false` | Whether the delete control is offered. Deletion destroys every membership and cannot be undone, so it is off unless a deployment asks for it |
 
 Every one of these is optional, and each missing value disables the part of the feature that depends on it rather than causing an error at startup. This matches how `SRAM_INTROSPECTION_TOKEN` already behaves.
+
+## Deployment posture
+
+The organisation API token is an organisation-wide administrator credential: it can change and delete every collaboration in the organisation, not only the ones this application shows. That makes the application the only gate between a logged-in user and organisation-wide change, so the deployment defaults are chosen to keep the blast radius small.
+
+`sram_api_base_url` defaults to the acceptance environment, `https://acc.sram.surf.nl`, in the deployment variables. Pointing a deployment at production is a deliberate decision, taken with a token issued for that purpose, ideally for an organisation that exists for this application rather than the institution's main one.
+
+`COLLABORATION_DELETION_ENABLED` is false, so the delete control is not offered. The page says so and names the setting, rather than hiding the capability. The switch governs the route only: when provisioning cannot connect the service, the application still deletes the collaboration it just created, because leaving an unreachable collaboration behind would be worse.
+
+Keep `COLLABORATION_MANAGER_ENTITLEMENT` pointed at a small group. Its holders can provision, and where deletion is enabled, delete.
+
+If an application only needs to show who is in a collaboration, it does not need any of this: the service's own SCIM token gives read-only access to the users and groups of the collaborations connected to it.
 
 ## Python API
 
@@ -167,7 +180,7 @@ Actions on the detail page:
 | Invitations | Resend; change intended role; withdraw. SRAM's invitation update accepts only the role and the target groups, so an invitation's expiry cannot be changed after it is sent |
 | Groups | Create group; rename or re-describe a group; delete group; add a member to a group; remove a member from a group |
 | Services | Connect this service; disconnect this service |
-| Collaboration | Delete collaboration |
+| Collaboration | Delete collaboration, where `COLLABORATION_DELETION_ENABLED` allows it |
 
 Every action is a form post, so no action can be triggered by following a link:
 
@@ -193,7 +206,7 @@ Pending invitations and the management controls are shown to collaboration admin
 
 Each action states the SRAM call it performs, as method and path, next to the control. The application is a reference implementation, so showing which endpoint backs each control is part of what it demonstrates.
 
-Removing a member, deleting a group, disconnecting a service and deleting a collaboration require an explicit confirmation step. The confirmation text is carried in a `data-confirm` attribute and read by one script that binds a submit handler: a browser decodes an attribute value before its content would reach the JavaScript parser, so a name or email interpolated into an inline `onsubmit` handler could break out of the string literal despite HTML escaping. Deleting a collaboration is offered only to holders of the manager entitlement.
+Removing a member, deleting a group, disconnecting a service and deleting a collaboration require an explicit confirmation step. The confirmation text is carried in a `data-confirm` attribute and read by one script that binds a submit handler: a browser decodes an attribute value before its content would reach the JavaScript parser, so a name or email interpolated into an inline `onsubmit` handler could break out of the string literal despite HTML escaping. Deleting a collaboration is offered only to holders of the manager entitlement, and only where the deployment enables it.
 
 Two different reasons hide a control, and they read differently on the page. Where a **credential is missing**, the section is replaced by a note naming the environment variable to set, so the demo makes the credential requirements visible. Where the **user lacks the authority**, the control is simply absent, because naming a capability the viewer cannot have adds nothing.
 
