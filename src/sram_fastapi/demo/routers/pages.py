@@ -25,6 +25,7 @@ from sram_fastapi.auth import (
     get_optional_user,
     get_token_user,
 )
+from sram_fastapi.collaborations import groups_of
 from sram_fastapi.config import Settings, get_settings
 
 from .authorization import DEMO_REQUIRED_AFFILIATION, DEMO_REQUIRED_ENTITLEMENT
@@ -100,8 +101,14 @@ def create_pages_router() -> APIRouter:
         - Authenticated: User identity, access rights, and testing tools
         """
         raw_claims_json = ""
+        features = []
         if user:
             raw_claims_json = json.dumps(user.raw_claims, indent=2, default=str)
+            held = {short_name for _, short_name in groups_of(user.eduperson_entitlement)}
+            features = [
+                {"name": feature, "group": short_name, "granted": short_name in held}
+                for feature, short_name in settings.feature_groups.items()
+            ]
 
         return templates.TemplateResponse(
             request=request,
@@ -110,6 +117,7 @@ def create_pages_router() -> APIRouter:
                 "user": user,
                 "base_url": settings.base_url,
                 "raw_claims_json": raw_claims_json,
+                "features": features,
                 "required_entitlement": DEMO_REQUIRED_ENTITLEMENT,
                 "required_affiliation": DEMO_REQUIRED_AFFILIATION,
                 "version": __version__,

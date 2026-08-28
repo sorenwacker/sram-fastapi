@@ -12,6 +12,7 @@ from fastapi import Depends, HTTPException, Request, status
 from starlette.config import Config
 from starlette.responses import RedirectResponse
 
+from sram_fastapi.collaborations import groups_of
 from sram_fastapi.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -383,3 +384,59 @@ def require_affiliation(*required: str, require_all: bool = False) -> Callable:
         get_user_values=lambda u: u.voperson_external_affiliation or [],
         match_func=_match_affiliation,
     )
+
+
+def require_group(*features: str, require_all: bool = False) -> Callable:
+    """Create a dependency that requires membership of the groups granting features.
+
+    A feature is mapped to a SRAM group short name by ``SRAM_FEATURE_GROUPS``. Matching
+    on the short name rather than on a full entitlement lets the same rule serve every
+    collaboration the application is connected to, because the collaboration part of the
+    entitlement differs per collaboration while the group part is fixed by the service.
+
+    A feature the deployment does not define is denied to everyone rather than being
+    treated as a group name, so a typo locks people out instead of granting access
+    through a group nobody meant to name.
+
+    Args:
+        *features: One or more feature names to check.
+        require_all: If True, the user must hold all of them. If False (default), one
+            of them suffices.
+
+    Returns:
+        A dependency function that validates the features and returns the User.
+
+    Raises:
+        AuthorizationError: If the user lacks the required group membership.
+    """
+
+    def check_groups(
+        user: Annotated[User, Depends(get_current_user)],
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> User:
+        mapping = settings.feature_groups
+        short_names = {mapping[f] for f in features if f in mapping}
+        missing = [f for f in features if f not in mapping]
+        if missing:
+            logger.error(
+                "Features %s are not mapped to a group in SRAM_FEATURE_GROUPS; "
+                "access is denied until they are configured.",
+                ", ".join(missing),
+            )
+
+        held = {short_name for _, short_name in groups_of(user.eduperson_entitlement)}
+        if require_all or missing:
+            has_required = not missing and short_names.issubset(held)
+        else:
+            has_required = bool(short_names & held)
+
+        if not has_required:
+            raise AuthorizationError(
+                required=[mapping.get(f, f"{f} (not configured)") for f in features],
+                actual=sorted(held),
+                check_type="group",
+                require_all=require_all,
+            )
+        return user
+
+    return check_groups

@@ -115,6 +115,35 @@
         </button>
         <div id="affiliation-result" class="test-result"></div>
     </div>
+
+    {% if features %}
+    <div class="test-route">
+        <h3>Feature Groups</h3>
+        <p class="requirement">
+            Each feature is granted by membership of a group inside your collaboration.
+            The short name carries the abbreviation SRAM prefixes when it provisions the
+            group for this service, so two applications can both define a group called
+            "editors" without one granting the other's features.
+        </p>
+        {% for feature in features %}
+        <div class="feature-row">
+            <span class="feature-name">{{ feature.name }}</span>
+            <code>{{ feature.group }}</code>
+            {% if feature.granted %}
+            <span class="feature-badge granted">member</span>
+            {% else %}
+            <span class="feature-badge">not a member</span>
+            {% endif %}
+            <button class="btn btn-primary"
+                    data-test-url="/demo/features/{{ feature.name }}"
+                    data-result="feature-result-{{ loop.index }}">
+                Test
+            </button>
+            <div id="feature-result-{{ loop.index }}" class="test-result"></div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
 
 {# API Access Section #}
@@ -146,6 +175,16 @@
 </div>
 
 <script>
+document.addEventListener("DOMContentLoaded", function () {
+    // The URL is read from a data attribute rather than an inline handler, so a
+    // configured feature name never lands in a JavaScript string literal.
+    document.querySelectorAll("button[data-test-url]").forEach(function (button) {
+        button.addEventListener("click", function () {
+            testRoute(button.dataset.testUrl, button.dataset.result);
+        });
+    });
+});
+
 async function testRoute(url, resultId) {
     const resultDiv = document.getElementById(resultId);
     resultDiv.innerHTML = '<span class="loading">Testing...</span>';
@@ -224,6 +263,24 @@ async function testRoute(url, resultId) {
 
 {% block styles %}
 <style>
+    .feature-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #edf2f7;
+    }
+    .feature-name { font-weight: 600; color: #2d3748; }
+    .feature-badge {
+        font-size: 0.75rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: #edf2f7;
+        color: #4a5568;
+    }
+    .feature-badge.granted { background: #c6f6d5; color: #22543d; }
+
     .section-intro {
         color: #4a5568;
         margin-bottom: 1rem;

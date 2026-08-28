@@ -108,6 +108,81 @@ The `require_affiliation` dependency supports two wildcard patterns:
 - `role@` - Matches any organization with the specified role (e.g., `staff@` matches `staff@tudelft.nl`, `staff@example.org`)
 - `@organization` - Matches any role at the specified organization (e.g., `@tudelft.nl` matches `staff@tudelft.nl`, `student@tudelft.nl`)
 
+### require_group
+
+Restricts access to members of a named group inside a collaboration, addressed by the group's short name rather than by a full entitlement URI.
+
+An entitlement names one specific collaboration: `urn:mace:surf.nl:sram:group:tudelft:sramdemo:editors` grants nothing to a member of another collaboration, even one holding the equivalent group there. `require_entitlement` therefore only works for an application serving a single, known collaboration. `require_group` matches on the last segment, so the same rule holds for every collaboration the application serves.
+
+```python
+from fastapi import Depends
+from sram_fastapi.auth import User, require_group
+
+
+@app.get("/reports")
+async def reports(user: User = Depends(require_group("editor"))):
+    return {"message": "Members of the editor group can see this"}
+```
+
+Features are mapped to group short names in configuration, so a deployment can point a feature at whatever its groups are called:
+
+```bash
+# .env
+SRAM_FEATURE_GROUPS=editor=sramdemo-editors,reviewer=sramdemo-reviewers
+```
+
+A bare name means the feature and the group share a name, so `SRAM_FEATURE_GROUPS=sramdemo-editors` defines a feature of that name.
+
+The configured value is the short name **as it appears in the entitlement**, which for a service group includes the service abbreviation. The next section explains where that prefix comes from and why it matters.
+
+The check fails closed. Requiring a feature that configuration does not define denies every user and logs the missing mapping, rather than falling back to the feature name as a group. A typo therefore locks people out, which is visible, instead of granting access through a group nobody meant to name.
+
+Like the other dependencies, `require_group` takes several names and a `require_all` flag:
+
+```python
+Depends(require_group("editor", "curator"))                    # either group
+Depends(require_group("editor", "curator", require_all=True))  # both groups
+```
+
+To find which collaborations granted a feature, rather than only whether one did, use `groups_of(user)`, which returns the collaboration URN and short name of every group the user belongs to.
+
+## Where the groups come from
+
+The short names have to exist in each collaboration for any of this to work. SRAM provides that through **service groups**: groups defined once on the service, which SRAM provisions into every collaboration that connects the service.
+
+This division of labour is what makes an application able to depend on a short name:
+
+| Action | Service admin | Collaboration admin |
+|--------|---------------|---------------------|
+| Define the group and its short name | Yes, on the service in SRAM | No |
+| Have it appear in a collaboration | Automatic when the service is connected | No |
+| Add and remove members | No | Yes |
+| Turn on auto provisioning, so every member joins | No | Yes |
+| Rename or delete it | Yes, on the service | No |
+
+A collaboration admin cannot remove a group that a connected service provisioned, so the application's authorization cannot be broken from inside a collaboration. What each collaboration decides for itself is who is in the group.
+
+A collaboration admin can also create ordinary groups. Those work identically for authorization, but nothing guarantees the short name, so an application should rely on service groups for its own features.
+
+### Why two applications can both define a group called "editors"
+
+An organisation may connect several applications to the same collaboration, and nothing stops two of them from naming a service group `editors`. Matching on a bare short name would then let a member of one application's editors group pass the other application's check.
+
+SRAM prevents this when it provisions the group. The group it creates in the collaboration is named after both the service and the service group:
+
+```
+short_name  = <service abbreviation>-<service group short name>
+platform id = <organisation>:<collaboration>:<short_name>
+```
+
+Two applications defining `editors` therefore produce `appa-editors` and `appb-editors` as separate groups in the same collaboration, with separate memberships and separate entitlements. The prefix is applied by SRAM, not by the application, and a service group's short name cannot be changed from inside a collaboration, so the namespace holds.
+
+This is why a feature maps to the prefixed name. Configuring `editor=editors` would match nothing, because no entitlement ends in `:editors` once SRAM has prefixed it; and stripping prefixes before matching would reintroduce exactly the collision the prefix exists to prevent.
+
+A second boundary limits the damage of any name collision that does occur. SRAM releases only the memberships that concern the application being logged into: "Applications only receive attributes which concern the collaboration(s) to which the application is connected." A group named after this application in a collaboration it is not connected to never appears in a claim it receives.
+
+What remains, and is worth stating plainly: within a collaboration this application is connected to, any group whose short name matches a configured feature grants that feature. Service groups occupy their names, so a collaboration admin cannot claim them, but an application that maps a feature to an ordinary group name is trusting the collaboration's admins not to reuse it.
+
 ## Handling Authorization Errors
 
 When authorization fails, an `AuthorizationError` exception is raised. This exception contains context about what was required vs what the user has.

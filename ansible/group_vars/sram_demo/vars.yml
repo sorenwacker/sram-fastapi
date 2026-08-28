@@ -17,6 +17,8 @@ sram_service_entity_id: ""
 # Entitlement required to provision and delete collaborations; without it nobody may
 collaboration_manager_entitlement: ""
 # The organisation API token itself lives in vault.yml as vault_sram_organisation_api_token
+# Features granted by group membership, as feature=group_short_name pairs
+sram_feature_groups: ""
 
 # Gunicorn settings
 gunicorn_workers: 4

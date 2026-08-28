@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Deleting a collaboration destroys its memberships and cannot be undone,
     # so it stays off unless a deployment asks for it
     collaboration_deletion_enabled: bool = False
+    # Features this application offers, mapped to the SRAM group short names that grant
+    # them, as "feature=short_name" pairs. A bare name is both feature and short name.
+    sram_feature_groups: str = ""
 
     # Session settings
     session_cookie_name: str = "session"
@@ -47,6 +50,27 @@ class Settings(BaseSettings):
     # Server settings
     base_url: str = "http://localhost:8124"
     allowed_redirect_urls: list[str] = ["http://localhost:8124"]
+
+    @property
+    def feature_groups(self) -> dict[str, str]:
+        """Features mapped to the group short names that grant them.
+
+        For a service group the short name includes the service abbreviation that SRAM
+        prefixes when it provisions the group, for example ``sramdemo-editors``.
+
+        Returns:
+            A mapping of feature name to group short name, empty when none are configured.
+        """
+        mapping: dict[str, str] = {}
+        for entry in self.sram_feature_groups.split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            feature, _, short_name = entry.partition("=")
+            feature = feature.strip()
+            short_name = short_name.strip() or feature
+            mapping[feature] = short_name
+        return mapping
 
 
 class ConfigurationError(Exception):

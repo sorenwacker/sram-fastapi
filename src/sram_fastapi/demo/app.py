@@ -126,7 +126,7 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
     # Include routers
     app.include_router(create_pages_router())
     app.include_router(create_auth_router())
-    app.include_router(create_authorization_router())
+    app.include_router(create_authorization_router(settings))
     app.include_router(create_collaborations_router())
 
     return app

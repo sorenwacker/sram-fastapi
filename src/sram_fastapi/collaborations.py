@@ -62,6 +62,28 @@ def collaboration_urns(entitlements: list[str] | None) -> set[str]:
     return urns
 
 
+def groups_of(entitlements: list[str] | None) -> set[tuple[str, str]]:
+    """Return the groups an entitlement list implies, as collaboration and short name.
+
+    A collaboration membership carries two segments after the prefix and is not a group;
+    a group membership carries three, the last being the group's short name.
+
+    Args:
+        entitlements: Values of the user's ``eduperson_entitlement`` claim.
+
+    Returns:
+        Pairs of collaboration global URN and group short name.
+    """
+    groups = set()
+    for entitlement in entitlements or []:
+        if not entitlement.startswith(ENTITLEMENT_PREFIX):
+            continue
+        segments = entitlement[len(ENTITLEMENT_PREFIX) :].split(":")
+        if len(segments) >= 3:
+            groups.add((":".join(segments[:2]), segments[2]))
+    return groups
+
+
 class SRAMAPIError(Exception):
     """Raised when the SRAM organisation API cannot be reached or fails."""
 

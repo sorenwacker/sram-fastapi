@@ -11,7 +11,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from sram_fastapi.auth import User, require_affiliation, require_entitlement
+from sram_fastapi.auth import User, require_affiliation, require_entitlement, require_group
+from sram_fastapi.config import Settings
 
 # Demo authorization requirements
 # These values should be configured per-deployment in a real application
@@ -27,11 +28,40 @@ class AuthorizationCheckResponse(BaseModel):
     required: str
 
 
-def create_authorization_router() -> APIRouter:
+def _add_feature_route(router: APIRouter, feature: str, short_name: str) -> None:
+    """Add one route protected by the group that grants a feature.
+
+    Args:
+        router: The router to add the route to.
+        feature: The feature name from the configuration.
+        short_name: The SRAM group short name that grants it.
+    """
+
+    @router.get(
+        f"/features/{feature}",
+        response_model=AuthorizationCheckResponse,
+        name=f"feature_{feature}",
+    )
+    async def feature_protected(
+        user: Annotated[User, Depends(require_group(feature))],
+    ) -> AuthorizationCheckResponse:
+        """Endpoint reachable by members of the group that grants this feature."""
+        return AuthorizationCheckResponse(
+            message=f"Group check passed for feature '{feature}'",
+            user=user.preferred_username or user.email or user.sub,
+            required=short_name,
+        )
+
+
+def create_authorization_router(settings: Settings) -> APIRouter:
     """Create the authorization demo router.
 
+    Args:
+        settings: Application settings, read for the configured feature groups.
+
     Returns:
-        APIRouter with JSON endpoints protected by entitlement and affiliation checks.
+        APIRouter with JSON endpoints protected by entitlement, affiliation and group
+        checks. One route is served per configured feature.
     """
     router = APIRouter(prefix="/demo", tags=["authorization"])
 
@@ -70,5 +100,8 @@ def create_authorization_router() -> APIRouter:
             user=user.preferred_username or user.email or user.sub,
             required=DEMO_REQUIRED_AFFILIATION,
         )
+
+    for feature, short_name in settings.feature_groups.items():
+        _add_feature_route(router, feature, short_name)
 
     return router
