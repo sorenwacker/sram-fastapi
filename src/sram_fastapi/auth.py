@@ -386,17 +386,74 @@ def require_affiliation(*required: str, require_all: bool = False) -> Callable:
     )
 
 
+def _describe_feature(settings: Settings, feature: str) -> str:
+    """Describe the group a feature needs, for an authorization error message."""
+    group = settings.feature_groups.get(feature)
+    if group is None:
+        return f"{feature} (not configured)"
+    if group.collaboration:
+        return f"{group.collaboration}/{group.short_name}"
+    return group.short_name
+
+
+def grants_feature(user: User, settings: Settings, feature: str) -> bool:
+    """Whether the user holds the group that grants a feature.
+
+    A feature bound to a collaboration is granted only by that collaboration's group. An
+    unbound feature is granted by the short name in any collaboration, which is only
+    sound when this service owns the name: SRAM prefixes the service abbreviation to
+    every group it provisions for a service, and a collaboration admin cannot create a
+    group under a name a connected service already occupies. A short name without that
+    prefix could be chosen by any collaboration admin, so it is refused rather than
+    trusted across collaborations.
+
+    Args:
+        user: The authenticated user.
+        settings: Application settings holding the feature mapping.
+        feature: The feature name to check.
+
+    Returns:
+        True if the user holds a group that grants the feature.
+    """
+    group = settings.feature_groups.get(feature)
+    if group is None:
+        logger.error(
+            "Feature '%s' is not mapped to a group in SRAM_FEATURE_GROUPS; "
+            "access is denied until it is configured.",
+            feature,
+        )
+        return False
+
+    held = groups_of(user.eduperson_entitlement)
+    if group.collaboration:
+        return (group.collaboration, group.short_name) in held
+
+    abbreviation = settings.sram_service_abbreviation
+    if not abbreviation or not group.short_name.startswith(f"{abbreviation}-"):
+        logger.error(
+            "Feature '%s' names the group '%s', which does not belong to this service. "
+            "Name a service group, which SRAM prefixes with '%s-', or bind the feature "
+            "to one collaboration as 'collaboration_urn/%s'.",
+            feature,
+            group.short_name,
+            abbreviation or "<SRAM_SERVICE_ABBREVIATION>",
+            group.short_name,
+        )
+        return False
+
+    return any(short_name == group.short_name for _, short_name in held)
+
+
 def require_group(*features: str, require_all: bool = False) -> Callable:
     """Create a dependency that requires membership of the groups granting features.
 
-    A feature is mapped to a SRAM group short name by ``SRAM_FEATURE_GROUPS``. Matching
-    on the short name rather than on a full entitlement lets the same rule serve every
-    collaboration the application is connected to, because the collaboration part of the
-    entitlement differs per collaboration while the group part is fixed by the service.
+    A feature is mapped to a SRAM group by ``SRAM_FEATURE_GROUPS``. Matching on the
+    group rather than on a full entitlement lets one rule serve every collaboration the
+    application is connected to, because the collaboration part of an entitlement differs
+    per collaboration while a service group's short name is fixed by the service.
 
-    A feature the deployment does not define is denied to everyone rather than being
-    treated as a group name, so a typo locks people out instead of granting access
-    through a group nobody meant to name.
+    A feature the deployment does not define, or one that names a group this service does
+    not own, is denied to everyone. See :func:`grants_feature` for the rules.
 
     Args:
         *features: One or more feature names to check.
@@ -414,26 +471,16 @@ def require_group(*features: str, require_all: bool = False) -> Callable:
         user: Annotated[User, Depends(get_current_user)],
         settings: Annotated[Settings, Depends(get_settings)],
     ) -> User:
-        mapping = settings.feature_groups
-        short_names = {mapping[f] for f in features if f in mapping}
-        missing = [f for f in features if f not in mapping]
-        if missing:
-            logger.error(
-                "Features %s are not mapped to a group in SRAM_FEATURE_GROUPS; "
-                "access is denied until they are configured.",
-                ", ".join(missing),
-            )
+        granted = [grants_feature(user, settings, feature) for feature in features]
+        has_required = all(granted) if require_all else any(granted)
 
-        held = {short_name for _, short_name in groups_of(user.eduperson_entitlement)}
-        if require_all or missing:
-            has_required = not missing and short_names.issubset(held)
-        else:
-            has_required = bool(short_names & held)
-
-        if not has_required:
+        if not (features and has_required):
             raise AuthorizationError(
-                required=[mapping.get(f, f"{f} (not configured)") for f in features],
-                actual=sorted(held),
+                required=[_describe_feature(settings, feature) for feature in features],
+                actual=sorted(
+                    f"{collaboration}/{short_name}"
+                    for collaboration, short_name in groups_of(user.eduperson_entitlement)
+                ),
                 check_type="group",
                 require_all=require_all,
             )

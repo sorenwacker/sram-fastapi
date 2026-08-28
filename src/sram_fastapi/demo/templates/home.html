@@ -121,14 +121,16 @@
         <h3>Feature Groups</h3>
         <p class="requirement">
             Each feature is granted by membership of a group inside your collaboration.
-            The short name carries the abbreviation SRAM prefixes when it provisions the
-            group for this service, so two applications can both define a group called
-            "editors" without one granting the other's features.
+            A group named for this service carries the abbreviation SRAM prefixes when it
+            provisions the group, so two applications can both define a group called
+            "editors" without one granting the other's features. A group this service does
+            not own is trusted only in the collaboration it is shown with, because any
+            collaboration admin could otherwise create a group by that name.
         </p>
         {% for feature in features %}
         <div class="feature-row">
             <span class="feature-name">{{ feature.name }}</span>
-            <code>{{ feature.group }}</code>
+            <code>{% if feature.collaboration %}{{ feature.collaboration }}/{% endif %}{{ feature.group }}</code>
             {% if feature.granted %}
             <span class="feature-badge granted">member</span>
             {% else %}

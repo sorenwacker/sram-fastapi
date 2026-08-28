@@ -1,10 +1,27 @@
 """Application configuration using pydantic-settings."""
 
 import sys
+from dataclasses import dataclass
 from functools import lru_cache
 
 from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+@dataclass(frozen=True)
+class FeatureGroup:
+    """The SRAM group that grants a feature.
+
+    Attributes:
+        short_name: The group's short name, as it appears in the entitlement.
+        collaboration: The global URN of the only collaboration where this group grants
+            the feature, or None to trust the short name in every collaboration. A short
+            name is only trustworthy everywhere when this service owns it, which is why
+            an unscoped name must carry the service abbreviation.
+    """
+
+    short_name: str
+    collaboration: str | None = None
 
 
 class Settings(BaseSettings):
@@ -38,8 +55,12 @@ class Settings(BaseSettings):
     # Deleting a collaboration destroys its memberships and cannot be undone,
     # so it stays off unless a deployment asks for it
     collaboration_deletion_enabled: bool = False
-    # Features this application offers, mapped to the SRAM group short names that grant
-    # them, as "feature=short_name" pairs. A bare name is both feature and short name.
+    # Abbreviation of this service in SRAM, which SRAM prefixes to the short name of
+    # every group it provisions for the service. Required to trust an unscoped group.
+    sram_service_abbreviation: str = ""
+    # Features this application offers, mapped to the SRAM groups that grant them, as
+    # "feature=short_name" or "feature=collaboration_urn/short_name" pairs. A bare name
+    # is both feature and short name.
     sram_feature_groups: str = ""
 
     # Session settings
@@ -52,24 +73,32 @@ class Settings(BaseSettings):
     allowed_redirect_urls: list[str] = ["http://localhost:8124"]
 
     @property
-    def feature_groups(self) -> dict[str, str]:
-        """Features mapped to the group short names that grant them.
+    def feature_groups(self) -> dict[str, "FeatureGroup"]:
+        """Features mapped to the groups that grant them.
 
-        For a service group the short name includes the service abbreviation that SRAM
-        prefixes when it provisions the group, for example ``sramdemo-editors``.
+        Each entry is ``feature=short_name`` or ``feature=collaboration_urn/short_name``.
+        The first form trusts the short name in every collaboration, which is only sound
+        for a group this service owns, so it must carry the service abbreviation that
+        SRAM prefixes when it provisions a service group, such as ``sramdemo-editors``.
+        The second form binds an ordinary group to the one collaboration it belongs to.
 
         Returns:
-            A mapping of feature name to group short name, empty when none are configured.
+            A mapping of feature name to the group granting it, empty when none are
+            configured.
         """
-        mapping: dict[str, str] = {}
+        mapping: dict[str, FeatureGroup] = {}
         for entry in self.sram_feature_groups.split(","):
             entry = entry.strip()
             if not entry:
                 continue
-            feature, _, short_name = entry.partition("=")
+            feature, _, value = entry.partition("=")
             feature = feature.strip()
-            short_name = short_name.strip() or feature
-            mapping[feature] = short_name
+            value = value.strip() or feature
+            collaboration, separator, short_name = value.rpartition("/")
+            mapping[feature] = FeatureGroup(
+                short_name=short_name.strip(),
+                collaboration=collaboration.strip() if separator else None,
+            )
         return mapping
 
 

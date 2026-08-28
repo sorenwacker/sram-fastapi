@@ -128,12 +128,21 @@ Features are mapped to group short names in configuration, so a deployment can p
 
 ```bash
 # .env
+SRAM_SERVICE_ABBREVIATION=sramdemo
 SRAM_FEATURE_GROUPS=editor=sramdemo-editors,reviewer=sramdemo-reviewers
 ```
 
 A bare name means the feature and the group share a name, so `SRAM_FEATURE_GROUPS=sramdemo-editors` defines a feature of that name.
 
-The configured value is the short name **as it appears in the entitlement**, which for a service group includes the service abbreviation. The next section explains where that prefix comes from and why it matters.
+The configured value is the short name **as it appears in the entitlement**, which for a service group includes the service abbreviation. A name given this way is trusted in every collaboration, so the check requires it to start with `SRAM_SERVICE_ABBREVIATION` followed by a hyphen: only SRAM creates those, when it provisions this service's groups. A name without that prefix is refused, and the reason is logged.
+
+To use a group this service does not own, bind it to the one collaboration it belongs to:
+
+```bash
+SRAM_FEATURE_GROUPS=demo=tudelft:sramdemo/sramdemogroup
+```
+
+The feature is then granted only to members of that group in that collaboration. The same short name in any other collaboration grants nothing.
 
 The check fails closed. Requiring a feature that configuration does not define denies every user and logs the missing mapping, rather than falling back to the feature name as a group. A typo therefore locks people out, which is visible, instead of granting access through a group nobody meant to name.
 
@@ -181,7 +190,7 @@ This is why a feature maps to the prefixed name. Configuring `editor=editors` wo
 
 A second boundary limits the damage of any name collision that does occur. SRAM releases only the memberships that concern the application being logged into: "Applications only receive attributes which concern the collaboration(s) to which the application is connected." A group named after this application in a collaboration it is not connected to never appears in a claim it receives.
 
-What remains, and is worth stating plainly: within a collaboration this application is connected to, any group whose short name matches a configured feature grants that feature. Service groups occupy their names, so a collaboration admin cannot claim them, but an application that maps a feature to an ordinary group name is trusting the collaboration's admins not to reuse it.
+This leaves one case the application has to handle itself. A short name is chosen by whoever creates the group, so an unqualified short name is not a capability: a collaboration admin elsewhere could create a group by the same name and hand the feature to their members. The rule above closes it. A name is trusted across collaborations only when it carries this service's abbreviation, which SRAM applies when provisioning and which a collaboration admin cannot claim, because a connected service's groups already occupy those names. Any other group has to be named together with its collaboration, and grants the feature only there.
 
 ## Handling Authorization Errors
 

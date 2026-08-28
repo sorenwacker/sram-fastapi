@@ -101,7 +101,7 @@ def create_authorization_router(settings: Settings) -> APIRouter:
             required=DEMO_REQUIRED_AFFILIATION,
         )
 
-    for feature, short_name in settings.feature_groups.items():
-        _add_feature_route(router, feature, short_name)
+    for feature, group in settings.feature_groups.items():
+        _add_feature_route(router, feature, group.short_name)
 
     return router
