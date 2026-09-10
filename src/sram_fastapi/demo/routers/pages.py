@@ -29,8 +29,10 @@ from sram_fastapi.auth import (
 from sram_fastapi.collaborations import (
     ServiceGroupIndex,
     SRAMOrganisationClient,
+    collaboration_urns,
     get_organisation_client,
     get_service_group_index,
+    groups_of,
 )
 from sram_fastapi.config import Settings, get_settings
 
@@ -65,6 +67,9 @@ class HelloResponse(BaseModel):
     user: str
     email: str | None = None
     validation_time_ms: float | None = None
+    collaborations: list[str]
+    groups: list[str]
+    introspection: dict
 
 
 class TokenValidationResponse(BaseModel):
@@ -216,11 +221,15 @@ def create_pages_router() -> APIRouter:
             )
 
         user_info = result.get("user", {})
+        entitlements = user_info.get("eduperson_entitlement")
         return HelloResponse(
             message="Hello World!",
             user=user_info.get("name") or result.get("sub", "unknown"),
             email=user_info.get("email"),
             validation_time_ms=round(elapsed_ms, 1),
+            collaborations=sorted(collaboration_urns(entitlements)),
+            groups=sorted(f"{co}/{group}" for co, group in groups_of(entitlements)),
+            introspection=result,
         )
 
     @router.get("/test-token", response_class=HTMLResponse)

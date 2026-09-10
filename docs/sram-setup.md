@@ -211,6 +211,26 @@ User                          Your App                         SRAM
   |   {"message": "Hello!"}     |                               |
 ```
 
+#### What Introspection Returns
+
+SRAM answers an introspection request with a JSON object. For a valid token the object carries `active: true`, `status: "token-valid"`, and the fields below. For an invalid token it carries `active: false` and a `status` of `token-unknown`, `token-expired`, `user-suspended` or `token-not-connected`.
+
+| Field | Meaning |
+|-------|---------|
+| `client_id`, `aud` | Entity ID of the service the token was created for |
+| `iss` | The SRAM instance that answered |
+| `sub`, `username` | The user's SRAM uid and username |
+| `iat`, `exp` | When this answer was produced and until when it may be cached, as Unix timestamps. `exp` is the lifetime of the answer, not of the token |
+| `user.name`, `user.given_name`, `user.family_name`, `user.email` | Name and email as registered in SRAM |
+| `user.sub`, `user.uid`, `user.username` | The same identifiers as the top-level fields |
+| `user.voperson_external_id` | The user's identifier at their home institution |
+| `user.voperson_external_affiliation` | The user's scoped affiliation at their home institution |
+| `user.eduperson_entitlement` | Memberships, as `urn:mace:surf.nl:sram:group:<organisation>:<collaboration>` for a collaboration and `...:<organisation>:<collaboration>:<group>` for a group inside it. Only collaborations connected to the service are included |
+
+Group membership is the only authorization data in the answer. SRAM application tokens carry no OAuth scopes, roles or service tiers; an application derives its own permissions from the entitlements, as described in [Authorization](authorization.md).
+
+The demo application's `/api/hello` endpoint returns the complete introspection object under `introspection`, together with the collaborations and groups derived from the entitlements. The token test page at `/test-token` renders all of it: the user's attributes, the collaborations and groups, the answer's validity window, and the raw JSON.
+
 **Properties:**
 - Server-side secret - users never see this token
 - One per service/application

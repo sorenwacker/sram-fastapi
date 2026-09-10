@@ -241,12 +241,43 @@ async function testHelloApi() {
 
         if (response.ok) {
             const statsHtml = data.validation_time_ms ? getStatsHtml(data.validation_time_ms) : '';
+            const info = data.introspection || {};
+            const user = info.user || {};
+            const userRows = [
+                ['Name', user.name],
+                ['Given name', user.given_name],
+                ['Family name', user.family_name],
+                ['Email', user.email],
+                ['Username', user.username],
+                ['SRAM uid', user.uid],
+                ['Home identifier', user.voperson_external_id],
+                ['Home affiliation', user.voperson_external_affiliation],
+            ];
+            const answerRows = [
+                ['Status', info.status],
+                ['Service', info.client_id],
+                ['Issuer', info.iss],
+                ['Answered', info.iat ? new Date(info.iat * 1000).toLocaleString() : undefined],
+                ['Answer valid until', info.exp ? new Date(info.exp * 1000).toLocaleString() : undefined],
+            ];
             resultDiv.innerHTML = `
                 ${statsHtml}
                 <div class="success-box">
-                    <h3>${data.message}</h3>
-                    <p><strong>User:</strong> ${data.user}</p>
-                    ${data.email ? `<p><strong>Email:</strong> ${data.email}</p>` : ''}
+                    <h3>${escapeHtml(data.message)}</h3>
+                    <h4>User</h4>
+                    ${rowsTable(userRows)}
+                    <h4>Collaborations</h4>
+                    ${urnList(data.collaborations)}
+                    <h4>Groups</h4>
+                    ${urnList(data.groups)}
+                    <h4>Entitlements</h4>
+                    ${urnList(user.eduperson_entitlement)}
+                    <h4>Introspection answer</h4>
+                    ${rowsTable(answerRows)}
+                    <details style="margin-top: 1rem;">
+                        <summary>Full Response</summary>
+                        <pre><code>${escapeHtml(JSON.stringify(info, null, 2))}</code></pre>
+                    </details>
                 </div>
             `;
         } else {
@@ -260,6 +291,32 @@ async function testHelloApi() {
     } catch (e) {
         resultDiv.innerHTML = `<div class="error-box">Error: ${e.message}</div>`;
     }
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function rowsTable(rows) {
+    const present = rows.filter(([, value]) => value !== undefined && value !== null && value !== '');
+    if (!present.length) {
+        return '<p class="empty-note">None</p>';
+    }
+    const body = present
+        .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
+        .join('');
+    return `<table>${body}</table>`;
+}
+
+function urnList(values) {
+    if (!values || !values.length) {
+        return '<p class="empty-note">None</p>';
+    }
+    return `<ul class="urn-list">${values.map(v => `<li><code>${escapeHtml(v)}</code></li>`).join('')}</ul>`;
 }
 
 function getStatsHtml(ms) {
@@ -343,6 +400,23 @@ document.getElementById('token-input').addEventListener('input', updateCurlComma
     .success-box h3 {
         color: #276749;
         margin-bottom: 0.75rem;
+    }
+    .success-box h4 {
+        color: #276749;
+        font-size: 0.95rem;
+        margin-top: 1rem;
+        margin-bottom: 0.25rem;
+    }
+    .success-box table th {
+        text-align: left;
+        padding-right: 1rem;
+        white-space: nowrap;
+    }
+    .urn-list {
+        margin-left: 1.5rem;
+    }
+    .empty-note {
+        color: #a0aec0;
     }
     .error-box {
         background: #fff5f5;
