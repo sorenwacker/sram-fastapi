@@ -140,22 +140,28 @@ async function testToken(event) {
 
         const statsHtml = data.validation_time_ms ? getStatsHtml(data.validation_time_ms) : '';
 
+        const escapedResponse = `
+            <details style="margin-top: 1rem;">
+                <summary>Full Response</summary>
+                <pre><code>${escapeHtml(JSON.stringify(data, null, 2))}</code></pre>
+            </details>
+        `;
+
         if (response.ok && data.active) {
+            const user = data.user || {};
+            const rows = [
+                ['Status', data.status || 'active'],
+                ['Email', user.email || data.email],
+                ['Name', user.name || data.name],
+                ['Subject', data.sub],
+                ['Answer valid until', data.exp ? new Date(data.exp * 1000).toLocaleString() : undefined],
+            ];
             resultDiv.innerHTML = `
                 ${statsHtml}
                 <div class="success-box">
                     <h3>Token Valid</h3>
-                    <table>
-                        <tr><th>Status</th><td>${data.status || 'active'}</td></tr>
-                        ${data.email ? `<tr><th>Email</th><td>${data.email}</td></tr>` : ''}
-                        ${data.name ? `<tr><th>Name</th><td>${data.name}</td></tr>` : ''}
-                        ${data.sub ? `<tr><th>Subject</th><td><code>${data.sub}</code></td></tr>` : ''}
-                        ${data.exp ? `<tr><th>Expires</th><td>${new Date(data.exp * 1000).toLocaleString()}</td></tr>` : ''}
-                    </table>
-                    <details style="margin-top: 1rem;">
-                        <summary>Full Response</summary>
-                        <pre><code>${JSON.stringify(data, null, 2)}</code></pre>
-                    </details>
+                    ${rowsTable(rows)}
+                    ${escapedResponse}
                 </div>
             `;
         } else {
@@ -164,17 +170,14 @@ async function testToken(event) {
                 ${statsHtml}
                 <div class="error-box">
                     <h3>Token Invalid</h3>
-                    <p><strong>Status:</strong> ${status}</p>
-                    ${data.detail ? `<p>${data.detail}</p>` : ''}
-                    <details style="margin-top: 1rem;">
-                        <summary>Full Response</summary>
-                        <pre><code>${JSON.stringify(data, null, 2)}</code></pre>
-                    </details>
+                    <p><strong>Status:</strong> ${escapeHtml(status)}</p>
+                    <p>${escapeHtml(data.detail || '')}</p>
+                    ${escapedResponse}
                 </div>
             `;
         }
     } catch (e) {
-        resultDiv.innerHTML = `<div class="error-box">Error: ${e.message}</div>`;
+        resultDiv.innerHTML = `<div class="error-box">Error: ${escapeHtml(e.message)}</div>`;
     }
 
     return false;
@@ -241,25 +244,83 @@ async function testHelloApi() {
 
         if (response.ok) {
             const statsHtml = data.validation_time_ms ? getStatsHtml(data.validation_time_ms) : '';
+            const info = data.introspection || {};
+            const user = info.user || {};
+            const userRows = [
+                ['Name', user.name],
+                ['Given name', user.given_name],
+                ['Family name', user.family_name],
+                ['Email', user.email],
+                ['Username', user.username],
+                ['SRAM uid', user.uid],
+                ['Home identifier', user.voperson_external_id],
+                ['Home affiliation', user.voperson_external_affiliation],
+            ];
+            const answerRows = [
+                ['Status', info.status],
+                ['Service', info.client_id],
+                ['Issuer', info.iss],
+                ['Answered', info.iat ? new Date(info.iat * 1000).toLocaleString() : undefined],
+                ['Answer valid until', info.exp ? new Date(info.exp * 1000).toLocaleString() : undefined],
+            ];
             resultDiv.innerHTML = `
                 ${statsHtml}
                 <div class="success-box">
-                    <h3>${data.message}</h3>
-                    <p><strong>User:</strong> ${data.user}</p>
-                    ${data.email ? `<p><strong>Email:</strong> ${data.email}</p>` : ''}
+                    <h3>${escapeHtml(data.message)}</h3>
+                    <h4>User</h4>
+                    ${rowsTable(userRows)}
+                    <h4>Collaborations</h4>
+                    ${urnList(data.collaborations)}
+                    <h4>Groups</h4>
+                    ${urnList(data.groups)}
+                    <h4>Entitlements</h4>
+                    ${urnList(user.eduperson_entitlement)}
+                    <h4>Introspection answer</h4>
+                    ${rowsTable(answerRows)}
+                    <details style="margin-top: 1rem;">
+                        <summary>Full Response</summary>
+                        <pre><code>${escapeHtml(JSON.stringify(info, null, 2))}</code></pre>
+                    </details>
                 </div>
             `;
         } else {
             resultDiv.innerHTML = `
                 <div class="error-box">
-                    <h3>Error ${response.status}</h3>
-                    <p>${data.detail || 'Unknown error'}</p>
+                    <h3>Error ${escapeHtml(response.status)}</h3>
+                    <p>${escapeHtml(data.detail || 'Unknown error')}</p>
                 </div>
             `;
         }
     } catch (e) {
-        resultDiv.innerHTML = `<div class="error-box">Error: ${e.message}</div>`;
+        resultDiv.innerHTML = `<div class="error-box">Error: ${escapeHtml(e.message)}</div>`;
     }
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function rowsTable(rows) {
+    const present = rows.filter(([, value]) => value !== undefined && value !== null && value !== '');
+    if (!present.length) {
+        return '<p class="empty-note">None</p>';
+    }
+    const body = present
+        .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
+        .join('');
+    return `<table>${body}</table>`;
+}
+
+function urnList(values) {
+    if (!values || !values.length) {
+        return '<p class="empty-note">None</p>';
+    }
+    const body = values.map(v => `<li><code>${escapeHtml(v)}</code></li>`).join('');
+    return `<ul class="urn-list">${body}</ul>`;
 }
 
 function getStatsHtml(ms) {
@@ -343,6 +404,23 @@ document.getElementById('token-input').addEventListener('input', updateCurlComma
     .success-box h3 {
         color: #276749;
         margin-bottom: 0.75rem;
+    }
+    .success-box h4 {
+        color: #276749;
+        font-size: 0.95rem;
+        margin-top: 1rem;
+        margin-bottom: 0.25rem;
+    }
+    .success-box table th {
+        text-align: left;
+        padding-right: 1rem;
+        white-space: nowrap;
+    }
+    .urn-list {
+        margin-left: 1.5rem;
+    }
+    .empty-note {
+        color: #a0aec0;
     }
     .error-box {
         background: #fff5f5;

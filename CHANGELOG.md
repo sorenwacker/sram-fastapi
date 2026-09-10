@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 - `require_group`, which grants a feature to members of a named group in a named collaboration. Features are mapped in `SRAM_FEATURE_GROUPS` as `feature=collaboration/group`. A feature the deployment does not define is denied to everyone. A feature naming a group without its collaboration is granted only where the organisation API confirms that a service group of that name exists, since a group short name is chosen by whoever creates the group and on its own is not a capability.
 - Settings `SRAM_API_BASE_URL`, `SRAM_ORGANISATION_API_TOKEN`, `SRAM_SERVICE_ENTITY_ID`, `COLLABORATION_MANAGER_ENTITLEMENT`, `COLLABORATION_DELETION_ENABLED` and `SRAM_FEATURE_GROUPS`. Each is optional; a missing value disables the part that depends on it and the page names what is missing.
 - Documentation: `docs/collaboration-management.md`, and a section in `docs/authorization.md` on granting features through groups.
+- `/api/hello` returns the complete SRAM introspection answer under `introspection`, with the collaborations and groups derived from its entitlements. The token test page renders every field: the user's attributes, memberships, the answer's validity window and the raw JSON, where it showed only name and email. `docs/sram-setup.md` lists the fields introspection returns.
 
 ### Changed
 
@@ -19,6 +20,8 @@ All notable changes to this project are documented in this file.
 - `docs/sram-setup.md` no longer states that applications cannot manage collaborations. They can, with an organisation API token.
 
 ### Fixed
+
+- The token test page inserted SRAM's answer and error text into HTML unescaped. Every rendered value now passes through one escaping helper, and a test rejects any interpolation that does not.
 
 - `make dev` started nothing, because it named an application object that does not exist. It now uses the factory, as the systemd unit already did.
 - Values placed in a SRAM API path are percent-encoded, so a uid or identifier carrying path separators cannot re-target a request at another collaboration.
