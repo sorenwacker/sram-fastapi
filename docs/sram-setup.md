@@ -227,7 +227,7 @@ SRAM answers an introspection request with a JSON object. For a valid token the 
 | `user.voperson_external_affiliation` | The user's scoped affiliation at their home institution |
 | `user.eduperson_entitlement` | Memberships, as `urn:mace:surf.nl:sram:group:<organisation>:<collaboration>` for a collaboration and `...:<organisation>:<collaboration>:<group>` for a group inside it. Only collaborations connected to the service are included |
 
-Group membership is the only authorization data in the answer. SRAM application tokens carry no OAuth scopes, roles or service tiers; an application derives its own permissions from the entitlements, as described in [Authorization](authorization.md).
+Group membership is the only authorization data in the answer. SRAM application tokens carry no OAuth scopes or roles; an application derives its own permissions from the entitlements, as described in [Authorization](authorization.md).
 
 The demo application's `/api/hello` endpoint returns the complete introspection object under `introspection`, together with the collaborations and groups derived from the entitlements. The token test page at `/test-token` renders all of it: the user's attributes, the collaborations and groups, the answer's validity window, and the raw JSON.
 
