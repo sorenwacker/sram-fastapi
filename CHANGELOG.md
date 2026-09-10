@@ -21,6 +21,8 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- The token test page inserted SRAM's answer and error text into HTML unescaped. Every rendered value now passes through one escaping helper, and a test rejects any interpolation that does not.
+
 - `make dev` started nothing, because it named an application object that does not exist. It now uses the factory, as the systemd unit already did.
 - Values placed in a SRAM API path are percent-encoded, so a uid or identifier carrying path separators cannot re-target a request at another collaboration.
 - Group and invitation actions are bound to the collaboration the caller was authorized for, instead of acting on any identifier supplied in the URL.

@@ -1,5 +1,7 @@
 """Tests for demo application."""
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -158,6 +160,32 @@ class TestDemoPages:
         assert response.status_code == 200
         for marker in ("data.introspection", "data.collaborations", "data.groups"):
             assert marker in response.text
+
+    def test_test_token_page_escapes_every_rendered_value(self, demo_client: TestClient):
+        """Every value the page inserts into HTML goes through the escaping helpers.
+
+        The page builds HTML with template literals. An interpolation is safe when it is an
+        escaped value, a fragment named as already escaped, the output of a helper that
+        escapes its inputs, or a number the page computed itself. Values that only reach
+        textContent or a request header are safe too.
+        """
+        allowed_prefixes = (
+            "escapeHtml(",
+            "escaped",
+            "statsHtml",
+            "rowsTable(",
+            "urnList(",
+            "body",
+            "colorClass",
+            "rating",
+            "ms",
+            "token",
+        )
+        script = demo_client.get("/test-token").text.split("<script>", 1)[1].split("</script>")[0]
+        interpolations = re.findall(r"\$\{([^}]*)\}", script)
+        assert interpolations
+        offending = [i for i in interpolations if not i.strip().startswith(allowed_prefixes)]
+        assert offending == []
 
     def test_hello_rejects_invalid_token(self, demo_client: TestClient):
         """Hello endpoint rejects request when introspection not configured."""
