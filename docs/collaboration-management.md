@@ -146,7 +146,7 @@ The organisation API token is an organisation administrator credential that can 
 **Managing members and admins** requires either the manager entitlement, or admin role in the collaboration itself. SRAM does not publish an admin role in the entitlement claim, so the role is read from the collaboration's own membership list and the acting user is matched against it by SRAM uid.
 
 !!! note "Matching a session to a membership"
-    The two identifiers for one person differ by host. A real subject claim from the login proxy reads `8ba4f476f50522bdae80f78f60513bce3752afd4@sram.surf.nl`, while the organisation API returns uids ending in `@sram.eduteams.org`. Comparing the strings whole would therefore never match, so the comparison uses the part before the host, which the two share. `sub` is the only identifier the proxy sends: the token payload carries no separate uid claim.
+    The session side of the comparison is `User.identifier`, which is the `voperson_id` claim for browser logins. The `sub` claim from SURFconext EngineBlock is a SURFconext-generated identifier unrelated to the SRAM uid and is never used for matching. The two identifiers for one person can differ by host: `voperson_id` reads `8ba4f476f50522bdae80f78f60513bce3752afd4@sram.surf.nl`, while the organisation API returns uids ending in `@sram.eduteams.org`. Comparing the strings whole would therefore never match, so the comparison uses the part before the host, which the two share.
 
     Holding `COLLABORATION_MANAGER_ENTITLEMENT` remains an independent path to the same routes. Both are enforced and tested, and neither opens access to a user who has neither.
 

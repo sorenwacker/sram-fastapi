@@ -136,7 +136,7 @@ Add the OIDC credentials to your application:
 # .env file
 SRAM_OIDC_CLIENT_ID=your-client-id
 SRAM_OIDC_CLIENT_SECRET=your-client-secret
-SRAM_OIDC_DISCOVERY_URL=https://proxy.sram.surf.nl/.well-known/openid-configuration
+SRAM_OIDC_DISCOVERY_URL=https://connect.surfconext.nl/.well-known/openid-configuration
 BASE_URL=https://your-app.example.com
 SECRET_KEY=generate-a-secure-random-key
 ```
@@ -146,6 +146,33 @@ Generate a secure secret key:
 ```bash
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
+
+For the SRAM acceptance environment (`acc.sram.surf.nl`) use `https://connect.test.surfconext.nl/.well-known/openid-configuration`.
+
+The application requests only the `openid` scope. SURFconext EngineBlock releases all claims the service is entitled to regardless of scope, and rejects the login when any scope other than `openid`, `profile`, `email` or a permitted `offline_access` is requested.
+
+### Migrating from the eduTEAMS proxy (deadline 15 January 2027)
+
+SRAM replaces its login proxy, eduTEAMS (`proxy.sram.surf.nl`, on acceptance `proxy.acc.sram.eduteams.org`), with SURFconext EngineBlock. Source: [SRAM Application Migration Guide](https://servicedesk.surf.nl/wiki/spaces/IAM/pages/346947851/SRAM+Application+Migration+Guide+eduTEAMS+-+SURFconext+EngineBlock) (SURF login required). An existing deployment migrates as follows:
+
+1. In SRAM, open the service, and enable the protocol on the **OpenID Connect** tab. Fill in the redirect URI and press **Update**.
+2. Copy the client secret SRAM shows there into `SRAM_OIDC_CLIENT_SECRET`. The client ID is unchanged.
+3. Set `SRAM_OIDC_DISCOVERY_URL` to the EngineBlock URL above, or remove it to use the default.
+4. Deploy, and test a login. Migrate the acceptance deployment first.
+
+Claim changes that affect applications:
+
+| Claim | Change | Consequence |
+|-------|--------|-------------|
+| `sub` | Now a SURFconext-generated identifier | Not usable to recognise existing users. Use `voperson_id`, which holds the value `sub` held before |
+| `uid` | Removed | Value moved to `voperson_sor_id` |
+| `eduperson_principal_name` | Now the home institution's value instead of the SRAM-generated one | The SRAM-generated value is in `voperson_external_id` |
+| `voperson_external_id` | Holds the SRAM-generated identifier; for international users also a community identifier | Multi-valued |
+| `eduperson_entitlement` | The `default` entitlement is no longer sent for Dutch users | Collaboration and group entitlements are unchanged |
+| `eduperson_scoped_affiliation` | Also contains the `voperson_external_affiliation` values (Dutch users) | |
+| `voperson_sor_id`, `acr`, `authenticating_authority`, `email_verified`, `nickname`, `preferred_username`, `updated_at` | Added | |
+
+`name`, `given_name`, `family_name`, `email`, `voperson_id`, `voperson_external_affiliation` and `ssh_public_key` are unchanged. LDAP and SCIM data are not affected by the migration.
 
 ## Step 6: Enable Application Token Support (Optional)
 
