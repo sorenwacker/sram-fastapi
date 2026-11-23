@@ -20,7 +20,8 @@ from sram_fastapi.auth import User
 
 @dataclass
 class User:
-    sub: str                                    # Subject identifier (unique user ID)
+    sub: str                                    # Subject claim; not stable across proxies, do not use as user key
+    voperson_id: str | None                     # SRAM user identifier (stable user key)
     email: str | None                           # User's email address
     name: str | None                            # Display name
     preferred_username: str | None              # Username
@@ -32,9 +33,12 @@ class User:
 **Create from OIDC claims:**
 
 ```python
-claims = {"sub": "abc123", "email": "user@example.com", "name": "Jane Doe"}
+claims = {"sub": "abc123", "voperson_id": "a1b2@sram.surf.nl", "email": "user@example.org", "name": "Jane Doe"}
 user = User.from_claims(claims)
+user.identifier  # "a1b2@sram.surf.nl"
 ```
+
+`User.identifier` is the key to recognise a user by. It returns `voperson_id` when the claims carry it, which is the case for every browser login through SURFconext EngineBlock. Users authenticated with an application token are built from the introspection answer, which carries no `voperson_id`; there `sub` is the SRAM uid and `identifier` returns it.
 
 ### OIDCClient
 
@@ -314,7 +318,7 @@ class Settings(BaseSettings):
     # SRAM OIDC (required)
     sram_oidc_client_id: str
     sram_oidc_client_secret: str
-    sram_oidc_discovery_url: str = "https://proxy.sram.surf.nl/.well-known/openid-configuration"
+    sram_oidc_discovery_url: str = "https://connect.surfconext.nl/.well-known/openid-configuration"
 
     # Session
     session_cookie_name: str = "session"
@@ -354,7 +358,7 @@ async def info(settings: Settings = Depends(get_settings)):
 |----------|----------|---------|-------------|
 | `SRAM_OIDC_CLIENT_ID` | Yes | - | OIDC client ID from SRAM |
 | `SRAM_OIDC_CLIENT_SECRET` | Yes | - | OIDC client secret |
-| `SRAM_OIDC_DISCOVERY_URL` | No | `https://proxy.sram.surf.nl/.well-known/openid-configuration` | OIDC discovery endpoint |
+| `SRAM_OIDC_DISCOVERY_URL` | No | `https://connect.surfconext.nl/.well-known/openid-configuration` | OIDC discovery endpoint |
 | `SRAM_INTROSPECTION_TOKEN` | No | - | Service token for validating user application tokens |
 | `SRAM_INTROSPECTION_URL` | No | `https://sram.surf.nl/api/tokens/introspect` | SRAM token introspection endpoint |
 | `SECRET_KEY` | Yes | - | Secret for session encryption |

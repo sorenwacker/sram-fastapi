@@ -60,7 +60,8 @@ class AuthorizationError(Exception):
 class User:
     """Authenticated user information from SRAM."""
 
-    sub: str  # Subject identifier
+    sub: str  # Subject claim; SURFconext-generated for browser logins
+    voperson_id: str | None = None
     email: str | None = None
     name: str | None = None
     preferred_username: str | None = None
@@ -73,6 +74,7 @@ class User:
         """Create User from OIDC claims."""
         return cls(
             sub=claims["sub"],
+            voperson_id=claims.get("voperson_id"),
             email=claims.get("email"),
             name=claims.get("name"),
             preferred_username=claims.get("preferred_username"),
@@ -80,6 +82,19 @@ class User:
             voperson_external_affiliation=claims.get("voperson_external_affiliation"),
             raw_claims=claims,
         )
+
+    @property
+    def identifier(self) -> str:
+        """The SRAM identifier to recognise this user by.
+
+        Browser logins through SURFconext EngineBlock carry the SRAM uid in
+        ``voperson_id``; their ``sub`` is unrelated. Introspection answers carry no
+        ``voperson_id`` and hold the SRAM uid in ``sub``.
+
+        Returns:
+            ``voperson_id`` when present, otherwise ``sub``.
+        """
+        return self.voperson_id or self.sub
 
 
 class OIDCClient:
@@ -112,11 +127,9 @@ class OIDCClient:
             self._oauth.register(
                 name="sram",
                 server_metadata_url=self.settings.sram_oidc_discovery_url,
-                client_kwargs={
-                    "scope": (
-                        "openid email profile eduperson_entitlement voperson_external_affiliation"
-                    ),
-                },
+                # EngineBlock releases all entitled claims for "openid" alone and
+                # rejects logins that request unknown scopes
+                client_kwargs={"scope": "openid"},
             )
         return self._oauth
 
