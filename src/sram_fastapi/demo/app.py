@@ -22,7 +22,9 @@ from sram_fastapi.demo.routers import (
     create_authorization_router,
     create_collaborations_router,
     create_pages_router,
+    create_scim_router,
 )
+from sram_fastapi.scim import SCIMTokenError
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,12 @@ SRAM_ERROR_RESPONSES: dict[type[SRAMAPIError], tuple[int, str, str]] = {
         "SRAM reports a conflict",
         "The change conflicts with the current state, for example a name or membership "
         "that already exists.",
+    ),
+    SCIMTokenError: (
+        502,
+        "SRAM rejected the SCIM token",
+        "The SCIM pull token is invalid or expired. This is a server configuration issue: "
+        "the administrator has to create a new token in SRAM and set SRAM_SCIM_TOKEN.",
     ),
     OrganisationTokenError: (
         502,
@@ -128,6 +136,7 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(create_auth_router())
     app.include_router(create_authorization_router(settings))
     app.include_router(create_collaborations_router())
+    app.include_router(create_scim_router())
 
     return app
 

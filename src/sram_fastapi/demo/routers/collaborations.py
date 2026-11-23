@@ -55,7 +55,7 @@ class MemberView:
     email: str
 
 
-def _is_manager(user: User, settings: Settings) -> bool:
+def is_manager_user(user: User, settings: Settings) -> bool:
     """Whether the user holds the entitlement that allows managing collaborations."""
     required = settings.collaboration_manager_entitlement
     return bool(required) and required in (user.eduperson_entitlement or [])
@@ -119,7 +119,7 @@ def _require_access(user: User, collaboration: Collaboration, settings: Settings
     Raises:
         AuthorizationError: If the user is neither a member nor a manager.
     """
-    if _is_member(user, collaboration) or _is_manager(user, settings):
+    if _is_member(user, collaboration) or is_manager_user(user, settings):
         return
     raise AuthorizationError(
         required=[entitlement_for(collaboration.global_urn or "")],
@@ -128,13 +128,13 @@ def _require_access(user: User, collaboration: Collaboration, settings: Settings
     )
 
 
-def _require_manager(user: User, settings: Settings) -> None:
+def require_manager(user: User, settings: Settings) -> None:
     """Raise unless the user may provision collaborations.
 
     Raises:
         AuthorizationError: If the user does not hold the manager entitlement.
     """
-    if _is_manager(user, settings):
+    if is_manager_user(user, settings):
         return
     raise AuthorizationError(
         required=[settings.collaboration_manager_entitlement or "collaboration manager"],
@@ -165,7 +165,7 @@ async def _managed_collaboration(
             nor a holder of the manager entitlement.
     """
     collaboration = await client.get_collaboration(identifier)
-    if _is_manager(user, settings) or _is_collaboration_admin(user, collaboration):
+    if is_manager_user(user, settings) or _is_collaboration_admin(user, collaboration):
         return collaboration
     raise AuthorizationError(
         required=[f"admin of {collaboration.global_urn or identifier}"],
@@ -268,7 +268,7 @@ def create_collaborations_router() -> APIRouter:
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
 
-        is_manager = _is_manager(user, settings)
+        is_manager = is_manager_user(user, settings)
         urns = collaboration_urns(user.eduperson_entitlement)
         context = {
             "user": user,
@@ -304,7 +304,7 @@ def create_collaborations_router() -> APIRouter:
         """Show the form for provisioning a collaboration."""
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
-        _require_manager(user, settings)
+        require_manager(user, settings)
 
         return templates.TemplateResponse(
             request=request,
@@ -339,7 +339,7 @@ def create_collaborations_router() -> APIRouter:
         """Create a collaboration and connect this service to it."""
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
-        _require_manager(user, settings)
+        require_manager(user, settings)
 
         if not settings.sram_service_entity_id:
             raise HTTPException(
@@ -390,7 +390,7 @@ def create_collaborations_router() -> APIRouter:
         """Delete a collaboration and return to the overview."""
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
-        _require_manager(user, settings)
+        require_manager(user, settings)
 
         if not settings.collaboration_deletion_enabled:
             raise AuthorizationError(
@@ -658,7 +658,7 @@ def create_collaborations_router() -> APIRouter:
                 context={
                     "user": user,
                     "configured": False,
-                    "is_manager": _is_manager(user, settings),
+                    "is_manager": is_manager_user(user, settings),
                     "member_urns": sorted(collaboration_urns(user.eduperson_entitlement)),
                     "collaborations": [],
                     "organisation": None,
@@ -670,7 +670,7 @@ def create_collaborations_router() -> APIRouter:
 
         _require_access(user, collaboration, settings)
 
-        is_manager = _is_manager(user, settings)
+        is_manager = is_manager_user(user, settings)
         is_admin = _is_collaboration_admin(user, collaboration)
         can_manage = is_admin or is_manager
         invitations = await client.list_open_invitations(identifier) if can_manage else []

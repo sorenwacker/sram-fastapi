@@ -361,6 +361,7 @@ async def info(settings: Settings = Depends(get_settings)):
 | `SRAM_OIDC_DISCOVERY_URL` | No | `https://connect.surfconext.nl/.well-known/openid-configuration` | OIDC discovery endpoint |
 | `SRAM_INTROSPECTION_TOKEN` | No | - | Service token for validating user application tokens |
 | `SRAM_INTROSPECTION_URL` | No | `https://sram.surf.nl/api/tokens/introspect` | SRAM token introspection endpoint |
+| `SRAM_SCIM_TOKEN` | No | - | SCIM pull token from the service's Details & settings tab, see [SCIM Provisioning](scim-provisioning.md) |
 | `SECRET_KEY` | Yes | - | Secret for session encryption |
 | `BASE_URL` | No | `http://localhost:8124` | Public URL of your app |
 | `DEBUG` | No | `false` | Enable debug mode |

@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     sram_api_base_url: str = "https://sram.surf.nl"
     sram_organisation_api_token: str | None = None
     sram_service_entity_id: str | None = None
+
+    # SRAM SCIM pull token, issued on the service's Details & settings tab
+    sram_scim_token: str | None = None
     collaboration_manager_entitlement: str | None = None
     # Deleting a collaboration destroys its memberships and cannot be undone,
     # so it stays off unless a deployment asks for it
