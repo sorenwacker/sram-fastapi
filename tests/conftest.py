@@ -16,7 +16,7 @@ def test_settings() -> Settings:
         secret_key="test-secret-key",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
-        sram_oidc_discovery_url="https://proxy.sram.surf.nl/.well-known/openid-configuration",
+        sram_oidc_discovery_url="https://connect.surfconext.nl/.well-known/openid-configuration",
         base_url="http://testserver",
     )
 

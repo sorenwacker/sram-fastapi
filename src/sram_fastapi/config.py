@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # SRAM OIDC settings
     sram_oidc_client_id: str
     sram_oidc_client_secret: str
-    sram_oidc_discovery_url: str = "https://proxy.sram.surf.nl/.well-known/openid-configuration"
+    sram_oidc_discovery_url: str = "https://connect.surfconext.nl/.well-known/openid-configuration"
 
     # SRAM token introspection (for application tokens)
     sram_introspection_token: str | None = None

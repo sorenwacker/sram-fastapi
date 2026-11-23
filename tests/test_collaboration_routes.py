@@ -205,11 +205,15 @@ class FakeClient:
         return collaboration() if identifier == CO_IDENTIFIER else other_collaboration()
 
 
-def user_with(*entitlements: str, sub: str = "member-uid@sram.eduteams.org") -> User:
-    """Build an authenticated user with the given entitlements."""
+def user_with(*entitlements: str, sub: str = "member-uid@sram.surf.nl") -> User:
+    """Build a user as SURFconext EngineBlock sends it.
+
+    The SRAM uid arrives in voperson_id; sub is an unrelated SURFconext identifier.
+    """
     return User.from_claims(
         {
-            "sub": sub,
+            "sub": "surfconext-generated-subject",
+            "voperson_id": sub,
             "email": "rdoe@uniharderwijk.nl",
             "name": "Researcher Doe",
             "eduperson_entitlement": list(entitlements),

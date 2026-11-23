@@ -66,12 +66,15 @@ class TestSettings:
         """Settings have sensible defaults."""
         monkeypatch.setenv("SRAM_OIDC_CLIENT_ID", "test-client")
         monkeypatch.setenv("SRAM_OIDC_CLIENT_SECRET", "test-secret")
+        monkeypatch.delenv("SRAM_OIDC_DISCOVERY_URL", raising=False)
 
-        settings = Settings()
+        settings = Settings(_env_file=None)
 
         assert settings.debug is False
         assert settings.session_max_age == 3600
-        assert "proxy.sram.surf.nl" in settings.sram_oidc_discovery_url
+        assert settings.sram_oidc_discovery_url == (
+            "https://connect.surfconext.nl/.well-known/openid-configuration"
+        )
 
     def test_settings_missing_required_raises(self, monkeypatch, tmp_path):
         """Settings raises error when required fields are missing."""
@@ -116,3 +119,31 @@ class TestIntrospectionTokenError:
         """Error can be raised and caught."""
         with pytest.raises(IntrospectionTokenError):
             raise IntrospectionTokenError("Test error")
+
+
+class TestEngineBlockClaims:
+    """Users from SURFconext EngineBlock are recognised by voperson_id, not sub."""
+
+    def test_identifier_is_voperson_id(self):
+        """EngineBlock's sub is unrelated to the SRAM uid, so voperson_id identifies."""
+        user = User.from_claims(
+            {"sub": "surfconext-generated-id", "voperson_id": "abc123@sram.surf.nl"}
+        )
+        assert user.voperson_id == "abc123@sram.surf.nl"
+        assert user.identifier == "abc123@sram.surf.nl"
+
+    def test_identifier_falls_back_to_sub(self):
+        """Introspection answers carry the SRAM uid in sub and no voperson_id."""
+        user = User.from_claims({"sub": "abc123@sram.surf.nl"})
+        assert user.identifier == "abc123@sram.surf.nl"
+
+
+class TestOIDCScopes:
+    """EngineBlock rejects logins that request scopes it does not know."""
+
+    def test_requests_only_openid(self, test_settings):
+        """Only the openid scope is requested."""
+        from sram_fastapi.auth import OIDCClient
+
+        oauth = OIDCClient(test_settings).get_oauth()
+        assert oauth.sram.client_kwargs["scope"] == "openid"

@@ -71,11 +71,12 @@ def _is_member(user: User, collaboration: Collaboration) -> bool:
 def _is_collaboration_admin(user: User, collaboration: Collaboration) -> bool:
     """Whether the user is an administrator of the collaboration.
 
-    The role is read from the collaboration's own membership list. The OIDC subject and
-    the uid the organisation API returns describe the same person with different hosts,
-    so the comparison is on the identifier itself rather than on the whole string.
+    The role is read from the collaboration's own membership list. The user's SRAM
+    identifier and the uid the organisation API returns describe the same person with
+    different hosts, so the comparison is on the identifier itself rather than on the
+    whole string.
     """
-    subject = identifier_of(user.sub)
+    subject = identifier_of(user.identifier)
     if not subject:
         return False
     return any(identifier_of(uid) == subject for uid in collaboration.admin_uids())
