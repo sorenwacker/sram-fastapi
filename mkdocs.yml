@@ -13,6 +13,7 @@ nav:
   - API Reference: api-reference.md
   - Authorization: authorization.md
   - Collaboration Management: collaboration-management.md
+  - SCIM Provisioning: scim-provisioning.md
   - SRAM Setup: sram-setup.md
   - Deployment: deployment.md
 

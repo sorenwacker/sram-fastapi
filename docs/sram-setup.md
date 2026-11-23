@@ -60,7 +60,7 @@ In this environment you can create test accounts and play with the application.
 If you need user data before first login:
 
 - **LDAP**: Traditional protocol for pre-authentication user provisioning.
-- **SCIM**: Modern API for bidirectional user data synchronization.
+- **SCIM**: REST API for user and group provisioning, see [SCIM Provisioning](scim-provisioning.md).
 
 ### After Approval
 
@@ -373,7 +373,7 @@ See [Collaboration Management](collaboration-management.md) for how this applica
 
 ### With the service SCIM token
 
-A registered service can read the users and groups of the collaborations connected to it through `GET /api/scim/v2/Users` and `GET /api/scim/v2/Groups`. This route is read-only.
+See [SCIM Provisioning](scim-provisioning.md).
 
 ## Troubleshooting
 

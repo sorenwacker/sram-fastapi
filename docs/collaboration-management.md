@@ -11,9 +11,9 @@ Two SRAM credentials are involved, and they are unrelated to the OIDC client cre
 | Credential | Issued by | Used for |
 |------------|-----------|----------|
 | Organisation API token | An organisation admin or manager, on the organisation's **API tokens** tab in SRAM | All write operations and reading collaboration details, scoped to one organisation |
-| Service token (SCIM client) | SURF, per registered service | Read-only `/api/scim/v2/Users` and `/api/scim/v2/Groups` for collaborations connected to this service |
+| SCIM pull token | A service admin, on the service's **Details & settings** tab in SRAM | Read-only SCIM access, see [SCIM Provisioning](scim-provisioning.md) |
 
-The organisation API token is the credential this feature is built on. The SCIM route is read-only and is not used here.
+The organisation API token is the credential this feature is built on. The SCIM token is not used here.
 
 ## What the organisation API supports
 
