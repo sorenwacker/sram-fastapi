@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}SCIM - SRAM Demo{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>SCIM pull</h1>
+    <p>Users and groups of all collaborations connected to this service, read from SRAM's SCIM endpoints when this page loads. This includes members who have never logged in.</p>
+</div>
+
+{% if directory is none %}
+<div class="card">
+    <h2>Not configured</h2>
+    <p>Enable <strong>SCIM pull by application</strong> on the service's Details &amp; settings tab in SRAM, create a token, and set it as <code>SRAM_SCIM_TOKEN</code>.</p>
+</div>
+{% else %}
+<div class="card">
+    <h2>Users ({{ directory.users | length }})</h2>
+    <table>
+        <thead><tr><th>User name</th><th>Name</th><th>Email</th></tr></thead>
+        <tbody>
+        {% for u in directory.users %}
+            <tr><td>{{ u.user_name }}</td><td>{{ u.display_name or "" }}</td><td>{{ u.email or "" }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>Groups ({{ directory.groups | length }})</h2>
+    <table>
+        <thead><tr><th>Name</th><th>URN</th><th>Members</th></tr></thead>
+        <tbody>
+        {% for g in directory.groups %}
+            <tr><td>{{ g.display_name }}</td><td>{{ g.urn or "" }}</td><td>{{ directory.member_names(g) | join(", ") }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}
