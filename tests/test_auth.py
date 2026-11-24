@@ -154,3 +154,23 @@ class TestOIDCScopes:
 
         oauth = OIDCClient(test_settings).get_oauth()
         assert oauth.sram.client_kwargs["token_endpoint_auth_method"] == "client_secret_post"
+
+
+class TestSessionSizeWarning:
+    """Browsers drop cookies over 4 KB, which silently logs the user out."""
+
+    def test_warns_with_field_sizes_when_session_is_large(self, caplog):
+        """A large session is reported with key names and sizes, never values."""
+        from sram_fastapi.demo.routers.auth import warn_if_session_too_large
+
+        secret_value = "x" * 5000
+        warn_if_session_too_large({"user": {"sub": "s"}, "access_token": secret_value})
+        assert "access_token" in caplog.text
+        assert secret_value not in caplog.text
+
+    def test_silent_for_small_session(self, caplog):
+        """A normal session logs nothing."""
+        from sram_fastapi.demo.routers.auth import warn_if_session_too_large
+
+        warn_if_session_too_large({"user": {"sub": "s"}, "access_token": "t"})
+        assert caplog.text == ""
