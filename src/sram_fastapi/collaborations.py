@@ -17,7 +17,7 @@ from typing import Annotated, Any, Literal
 from urllib.parse import quote
 
 import httpx
-from fastapi import Depends
+from fastapi import Depends, Request
 
 from sram_fastapi.config import Settings, get_settings
 
@@ -876,9 +876,17 @@ class ServiceGroupIndex:
         return bindings
 
 
-_service_group_index = ServiceGroupIndex()
+def get_service_group_index(request: Request) -> ServiceGroupIndex:
+    """Return the application's service group index, creating it on first use.
 
+    Args:
+        request: The current request, whose application holds the index.
 
-def get_service_group_index() -> ServiceGroupIndex:
-    """Get the shared service group index as a FastAPI dependency."""
-    return _service_group_index
+    Returns:
+        The index shared by every request to this application, so its cache is reused.
+    """
+    index = getattr(request.app.state, "service_group_index", None)
+    if index is None:
+        index = ServiceGroupIndex()
+        request.app.state.service_group_index = index
+    return index

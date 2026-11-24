@@ -238,18 +238,27 @@ class OIDCClient:
             return response.json()
 
 
-# Global OIDC client instance
-_oidc_client: OIDCClient | None = None
-
-
 def get_oidc_client(
+    request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> OIDCClient:
-    """Get OIDC client dependency."""
-    global _oidc_client
-    if _oidc_client is None:
-        _oidc_client = OIDCClient(settings)
-    return _oidc_client
+    """Return the application's OIDC client, creating it from its settings on first use.
+
+    The client caches the discovery document, so it is kept per application on
+    ``app.state`` rather than rebuilt per request.
+
+    Args:
+        request: The current request, whose application holds the client.
+        settings: The application's settings.
+
+    Returns:
+        The OIDC client built from these settings.
+    """
+    client = getattr(request.app.state, "sram_oidc_client", None)
+    if client is None or client.settings is not settings:
+        client = OIDCClient(settings)
+        request.app.state.sram_oidc_client = client
+    return client
 
 
 def get_current_user(request: Request) -> User:
@@ -295,6 +304,39 @@ async def get_token_user(
         )
 
     return User.from_claims(token_info)
+
+
+def is_collaboration_manager(user: User, settings: Settings) -> bool:
+    """Whether the user holds the entitlement configured as collaboration manager.
+
+    Args:
+        user: The authenticated user.
+        settings: Settings naming the manager entitlement.
+
+    Returns:
+        False when no manager entitlement is configured.
+    """
+    required = settings.collaboration_manager_entitlement
+    return bool(required) and required in (user.eduperson_entitlement or [])
+
+
+def require_collaboration_manager(user: User, settings: Settings) -> None:
+    """Raise unless the user is a collaboration manager.
+
+    Args:
+        user: The authenticated user.
+        settings: Settings naming the manager entitlement.
+
+    Raises:
+        AuthorizationError: If the user does not hold the manager entitlement.
+    """
+    if is_collaboration_manager(user, settings):
+        return
+    raise AuthorizationError(
+        required=[settings.collaboration_manager_entitlement or "collaboration manager"],
+        actual=user.eduperson_entitlement or [],
+        check_type="entitlement",
+    )
 
 
 @dataclass(frozen=True)
