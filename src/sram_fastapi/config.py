@@ -80,7 +80,6 @@ class Settings(BaseSettings):
 
     # Server settings
     base_url: str = "http://localhost:8124"
-    allowed_redirect_urls: list[str] = ["http://localhost:8124"]
 
     @field_validator("secret_key")
     @classmethod
