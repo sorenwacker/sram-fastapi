@@ -89,6 +89,26 @@ User                          Your App                         SRAM
 
 The **service introspection token** is a server-side secret your app uses to validate user tokens. Users never see or need this token.
 
+#### require_sram_application_token
+
+Dependency that validates a SRAM application token from the `Authorization: Bearer` header and returns a `SRAMTokenCheck` with the complete introspection answer (`introspection`) and the time the check took (`elapsed_ms`).
+
+```python
+from sram_fastapi.auth import SRAMTokenCheck, require_sram_application_token
+
+@app.get("/api/data")
+async def data(check: SRAMTokenCheck = Depends(require_sram_application_token)):
+    return {"user": check.introspection["user"]["name"]}
+```
+
+| Situation | Response |
+|-----------|----------|
+| No bearer token | 401 with `WWW-Authenticate: Bearer` |
+| `SRAM_INTROSPECTION_TOKEN` not set | 500, introspection not configured |
+| SRAM rejects the service introspection token | 503 |
+| SRAM unreachable | 502 |
+| Token not active | 401 with SRAM's `status`, for example `token-expired` |
+
 ### Dependency Functions
 
 FastAPI dependencies for protecting routes.

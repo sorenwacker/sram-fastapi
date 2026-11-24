@@ -1,9 +1,10 @@
 """SRAM OIDC authentication module."""
 
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any
 
 import httpx
 from authlib.integrations.starlette_client import OAuth
@@ -294,6 +295,71 @@ async def get_token_user(
         )
 
     return User.from_claims(token_info)
+
+
+@dataclass(frozen=True)
+class SRAMTokenCheck:
+    """The outcome of validating a SRAM application token.
+
+    Attributes:
+        introspection: SRAM's complete introspection answer for an active token.
+        elapsed_ms: How long the introspection request took, in milliseconds.
+    """
+
+    introspection: dict[str, Any]
+    elapsed_ms: float
+
+
+async def require_sram_application_token(
+    request: Request,
+    oidc_client: Annotated[OIDCClient, Depends(get_oidc_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SRAMTokenCheck:
+    """Validate the SRAM application token in the Authorization header.
+
+    Args:
+        request: The incoming request.
+        oidc_client: Client that performs the introspection.
+        settings: Settings providing the service introspection token.
+
+    Returns:
+        The introspection answer for an active token.
+
+    Raises:
+        HTTPException: 401 without a token or for an inactive one, 500 when
+            introspection is not configured, 503 when SRAM rejects the service
+            introspection token, 502 when SRAM cannot be reached.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not settings.sram_introspection_token:
+        raise HTTPException(status_code=500, detail="SRAM introspection not configured")
+
+    token = auth_header.removeprefix("Bearer ").strip()
+    start_time = time.perf_counter()
+    try:
+        result = await oidc_client.introspect_sram_token(token)
+    except IntrospectionTokenError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Service configuration error. Please contact the administrator.",
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Token introspection failed: {exc}") from exc
+    elapsed_ms = (time.perf_counter() - start_time) * 1000
+
+    if not result.get("active"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {result.get('status', 'unknown')}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return SRAMTokenCheck(introspection=result, elapsed_ms=elapsed_ms)
 
 
 def _match_affiliation(pattern: str, affiliation: str) -> bool:
