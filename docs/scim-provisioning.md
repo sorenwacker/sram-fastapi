@@ -80,7 +80,7 @@ SRAM sends push requests from the IP addresses SURF documents. The application a
 | `PUT /scim/v2/{Users,Groups}/{id}` | Replaces the stored resource, or 404 |
 | `DELETE /scim/v2/{Users,Groups}/{id}` | Removes the resource and returns 204, or 404 |
 
-Every request needs `Authorization: Bearer <SRAM_SCIM_PUSH_TOKEN>`. A missing or wrong token gives 401. When `SRAM_SCIM_PUSH_TOKEN` is not set, all endpoints answer 404, so push is off by default. Errors use the SCIM error format (`urn:ietf:params:scim:api:messages:2.0:Error`).
+Every request needs `Authorization: Bearer <SRAM_SCIM_PUSH_TOKEN>`. A missing or wrong token gives 401. When `SRAM_SCIM_PUSH_TOKEN` is not set, all endpoints answer 404, so push is off by default. Errors use the SCIM error format (`urn:ietf:params:scim:api:messages:2.0:Error`). A `POST` or `PUT` body that is not a JSON object gets 400 with `scimType` `invalidSyntax`.
 
 ### Storage
 

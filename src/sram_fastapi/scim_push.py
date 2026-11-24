@@ -71,10 +71,22 @@ Store = Annotated[SCIMStore, Depends(get_scim_store)]
 Config = Annotated[Settings, Depends(get_settings)]
 
 
-def _error(status: int, detail: str) -> JSONResponse:
+async def _json_object(request: Request) -> dict[str, Any] | None:
+    """Return the request body as a JSON object, or None when it is not one."""
+    try:
+        body = await request.json()
+    except ValueError:
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def _error(status: int, detail: str, scim_type: str | None = None) -> JSONResponse:
     """A SCIM error response."""
+    content: dict[str, Any] = {"schemas": [ERROR_SCHEMA], "status": str(status), "detail": detail}
+    if scim_type:
+        content["scimType"] = scim_type
     return JSONResponse(
-        {"schemas": [ERROR_SCHEMA], "status": str(status), "detail": detail},
+        content,
         status_code=status,
         media_type=SCIM_MEDIA_TYPE,
     )
@@ -145,7 +157,10 @@ def create_scim_push_router() -> APIRouter:
         """Store a new resource under a newly assigned id."""
         if denied := _authorised(request, settings):
             return denied
-        return _scim(store.put(kind, uuid.uuid4().hex, await request.json()), status=201)
+        body = await _json_object(request)
+        if body is None:
+            return _error(400, "Body must be a JSON object", scim_type="invalidSyntax")
+        return _scim(store.put(kind, uuid.uuid4().hex, body), status=201)
 
     @router.put("/{kind}/{resource_id}")
     async def replace_resource(
@@ -156,7 +171,10 @@ def create_scim_push_router() -> APIRouter:
             return denied
         if store.get(kind, resource_id) is None:
             return _error(404, f"{kind} {resource_id} not found")
-        return _scim(store.put(kind, resource_id, await request.json()))
+        body = await _json_object(request)
+        if body is None:
+            return _error(400, "Body must be a JSON object", scim_type="invalidSyntax")
+        return _scim(store.put(kind, resource_id, body))
 
     @router.delete("/{kind}/{resource_id}")
     async def delete_resource(
