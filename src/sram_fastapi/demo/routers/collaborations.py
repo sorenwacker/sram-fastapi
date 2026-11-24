@@ -14,12 +14,10 @@ Access rules:
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from sram_fastapi.auth import AuthorizationError, User, get_optional_user
 from sram_fastapi.collaborations import (
@@ -35,10 +33,10 @@ from sram_fastapi.collaborations import (
     identifier_of,
 )
 from sram_fastapi.config import Settings, get_settings
+from sram_fastapi.demo.templating import create_templates
 
 logger = logging.getLogger(__name__)
 
-TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 HIDDEN = "not disclosed"
 
@@ -252,7 +250,7 @@ def create_collaborations_router() -> APIRouter:
         APIRouter serving the collaboration overview and detail pages.
     """
     router = APIRouter(prefix="/collaborations", tags=["collaborations"])
-    templates = Jinja2Templates(directory=TEMPLATES_DIR)
+    templates = create_templates()
 
     @router.get("", response_class=HTMLResponse)
     async def list_collaborations(

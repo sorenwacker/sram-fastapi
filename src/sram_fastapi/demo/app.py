@@ -1,11 +1,9 @@
 """Demo application with HTML templates for SRAM authentication."""
 
 import logging
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from sram_fastapi.auth import AuthorizationError, get_optional_user
@@ -24,12 +22,12 @@ from sram_fastapi.demo.routers import (
     create_pages_router,
     create_scim_router,
 )
+from sram_fastapi.demo.templating import create_templates
 from sram_fastapi.scim import SCIMTokenError
 from sram_fastapi.scim_push import create_scim_push_router
 
 logger = logging.getLogger(__name__)
 
-TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 SRAM_ERROR_RESPONSES: dict[type[SRAMAPIError], tuple[int, str, str]] = {
     CollaborationNotFoundError: (
@@ -94,8 +92,9 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
     )
 
     app.dependency_overrides[get_settings] = lambda: settings
+    app.state.settings = settings
 
-    templates = Jinja2Templates(directory=TEMPLATES_DIR)
+    templates = create_templates()
 
     @app.exception_handler(AuthorizationError)
     async def authorization_error_handler(

@@ -4,20 +4,17 @@ Lists every user and group SRAM provisions to this service. Because that include
 members of every connected collaboration, the page is limited to managers.
 """
 
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from sram_fastapi.auth import User, get_optional_user
 from sram_fastapi.config import Settings, get_settings
 from sram_fastapi.demo.routers.collaborations import require_manager
+from sram_fastapi.demo.templating import create_templates
 from sram_fastapi.scim import SCIMDirectory, SCIMGroup, SCIMUser, SRAMSCIMClient, get_scim_client
 from sram_fastapi.scim_push import SCIMStore, get_scim_store
-
-TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 
 def create_scim_router() -> APIRouter:
@@ -27,7 +24,7 @@ def create_scim_router() -> APIRouter:
         APIRouter serving the /scim page.
     """
     router = APIRouter(tags=["scim"])
-    templates = Jinja2Templates(directory=TEMPLATES_DIR)
+    templates = create_templates()
 
     @router.get("/scim", response_class=HTMLResponse)
     async def scim_directory(
@@ -48,7 +45,6 @@ def create_scim_router() -> APIRouter:
             name="scim.html",
             context={
                 "user": user,
-                "is_manager": True,
                 "directory": directory,
                 "pushed": SCIMDirectory(
                     users=[SCIMUser.from_resource(r) for r in store.list("Users")],

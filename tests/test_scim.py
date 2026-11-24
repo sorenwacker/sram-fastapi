@@ -176,3 +176,22 @@ class TestSCIMPage:
     def test_navigation_links_page(self):
         """Managers reach the page from the navigation."""
         assert 'href="/scim"' in page(user(MANAGER)).text
+
+
+class TestNavigationLink:
+    """The SCIM link appears in the navigation on every page, for managers only."""
+
+    def home(self, entitlements: list[str]) -> str:
+        """Render the home page for a logged-in user."""
+        s = settings()
+        app = create_demo_app(s)
+        app.dependency_overrides[get_optional_user] = lambda: user(*entitlements)
+        return TestClient(app).get("/").text
+
+    def test_manager_sees_link_on_home_page(self):
+        """Managers reach /scim from the home page."""
+        assert 'href="/scim"' in self.home([MANAGER])
+
+    def test_member_does_not_see_link(self):
+        """Other users do not get a link to a page they cannot open."""
+        assert 'href="/scim"' not in self.home(["urn:mace:surf.nl:sram:group:uniharderwijk:other"])
