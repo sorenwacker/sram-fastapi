@@ -270,3 +270,39 @@ class TestSharedLoginRoutes:
             {"sub": "surfconext-subject", "voperson_id": "abc@sram.surf.nl"}
         )
         assert client.get("/auth/me").json()["identifier"] == "abc@sram.surf.nl"
+
+
+class TestSameOriginGuard:
+    """State-changing requests from another site are refused."""
+
+    def client(self, test_settings):
+        """The example app with one POST route."""
+        from fastapi.testclient import TestClient
+
+        from sram_fastapi.main import create_app
+
+        app = create_app(test_settings)
+
+        @app.post("/change")
+        async def change():
+            return {"ok": True}
+
+        return TestClient(app)
+
+    def test_foreign_origin_is_refused(self, test_settings):
+        """A POST from another origin gets 403."""
+        response = self.client(test_settings).post(
+            "/change", headers={"Origin": "https://evil.example.org"}
+        )
+        assert response.status_code == 403
+
+    def test_own_origin_passes(self, test_settings):
+        """A POST from the application's own origin passes."""
+        response = self.client(test_settings).post(
+            "/change", headers={"Origin": test_settings.base_url}
+        )
+        assert response.status_code == 200
+
+    def test_request_without_origin_passes(self, test_settings):
+        """Server-to-server calls, such as SCIM pushes, carry no Origin and pass."""
+        assert self.client(test_settings).post("/change").status_code == 200

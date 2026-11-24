@@ -200,6 +200,8 @@ app.include_router(create_auth_router())
 
 The session stores only the claims. The access token is not stored, because EngineBlock access tokens alone exceed the 4 KB browsers accept for a cookie; a warning is logged with field sizes, never values, when the claims approach that limit.
 
+`add_session_middleware` also refuses cross-site requests that change state. The session cookie is `SameSite=Lax`, which already keeps browsers from sending it with a cross-site `POST`; in addition, a `POST`, `PUT`, `PATCH` or `DELETE` whose `Origin` header names another origin than `BASE_URL` gets 403. Requests without an `Origin` header, such as SCIM pushes from SRAM or API calls with a bearer token, are not affected, since browsers always send `Origin` on cross-origin requests that change state.
+
 Both the demo application and the API example in `sram_fastapi.main` use this module.
 
 ## Authorization Module
