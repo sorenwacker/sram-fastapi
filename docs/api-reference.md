@@ -362,6 +362,7 @@ async def info(settings: Settings = Depends(get_settings)):
 | `SRAM_INTROSPECTION_TOKEN` | No | - | Service token for validating user application tokens |
 | `SRAM_INTROSPECTION_URL` | No | `https://sram.surf.nl/api/tokens/introspect` | SRAM token introspection endpoint |
 | `SRAM_SCIM_TOKEN` | No | - | SCIM pull token from the service's Details & settings tab, see [SCIM Provisioning](scim-provisioning.md) |
+| `SRAM_SCIM_PUSH_TOKEN` | No | - | Token SRAM must present on SCIM push requests; push endpoints are off when unset |
 | `SECRET_KEY` | Yes | - | Secret for session encryption |
 | `BASE_URL` | No | `http://localhost:8124` | Public URL of your app |
 | `DEBUG` | No | `false` | Enable debug mode |
