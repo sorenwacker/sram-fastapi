@@ -3,15 +3,18 @@
 import json
 import logging
 from typing import Annotated, Any
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from sram_fastapi.auth import OIDCClient, get_oidc_client
 from sram_fastapi.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
+
+UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 # Browsers drop cookies over 4096 bytes; the signed, base64-encoded session cookie is
 # about a third larger than its JSON content
@@ -45,7 +48,7 @@ def warn_if_session_too_large(session: dict[str, Any]) -> None:
 
 
 def add_session_middleware(app: FastAPI, settings: Settings) -> None:
-    """Add the signed-cookie session the login routes store the user in.
+    """Add the signed-cookie session and refuse cross-site state changes.
 
     Args:
         app: The application to configure.
@@ -59,6 +62,21 @@ def add_session_middleware(app: FastAPI, settings: Settings) -> None:
         https_only=settings.session_https_only,
         same_site="lax",
     )
+    own_origin = _origin_of(settings.base_url)
+
+    @app.middleware("http")
+    async def refuse_cross_site_changes(request: Request, call_next):
+        """Refuse state-changing requests that a browser sent from another origin."""
+        origin = request.headers.get("origin")
+        if request.method in UNSAFE_METHODS and origin and _origin_of(origin) != own_origin:
+            return JSONResponse(status_code=403, content={"detail": "Cross-site request refused"})
+        return await call_next(request)
+
+
+def _origin_of(url: str) -> str:
+    """Return the scheme, host and port of a URL, the part an Origin header carries."""
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}".lower()
 
 
 def create_auth_router() -> APIRouter:
