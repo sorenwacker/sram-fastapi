@@ -315,3 +315,37 @@ class TestAuthorizationInRoutes:
             response = client.get("/affiliation-protected")
             assert response.status_code == 403
             assert response.json()["check_type"] == "affiliation"
+
+
+class TestDemoDeniedResponseFormat:
+    """The demo's test buttons call JSON endpoints with fetch and parse the answer."""
+
+    def client(self):
+        """A demo client whose user lacks the demo entitlement."""
+        from fastapi.testclient import TestClient
+
+        from sram_fastapi.auth import get_current_user
+        from sram_fastapi.config import Settings
+        from sram_fastapi.demo.app import create_demo_app
+
+        app = create_demo_app(
+            Settings(
+                _env_file=None, secret_key="k", sram_oidc_client_id="a", sram_oidc_client_secret="b"
+            )
+        )
+        app.dependency_overrides[get_current_user] = lambda: User.from_claims(
+            {"sub": "s", "eduperson_entitlement": ["urn:example:other"]}
+        )
+        return TestClient(app)
+
+    def test_fetch_gets_json(self):
+        """A request that does not ask for HTML gets a JSON 403 with a detail."""
+        response = self.client().get("/demo/entitlement-protected", headers={"Accept": "*/*"})
+        assert response.status_code == 403
+        assert "Access denied" in response.json()["detail"]
+
+    def test_browser_navigation_gets_page(self):
+        """A browser navigating to the URL still sees the access denied page."""
+        response = self.client().get("/demo/entitlement-protected", headers={"Accept": "text/html"})
+        assert response.status_code == 403
+        assert "text/html" in response.headers["content-type"]
