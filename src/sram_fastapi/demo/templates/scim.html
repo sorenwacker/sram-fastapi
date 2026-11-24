@@ -29,10 +29,24 @@
 <div class="card">
     <h2>Groups ({{ directory.groups | length }})</h2>
     <table>
-        <thead><tr><th>Name</th><th>URN</th><th>Members</th></tr></thead>
+        <thead><tr><th>Name</th><th>URN</th><th>Members</th><th>Your access</th></tr></thead>
         <tbody>
         {% for g in directory.groups %}
-            <tr><td>{{ g.display_name }}</td><td>{{ g.urn or "" }}</td><td>{{ directory.member_names(g) | join(", ") }}</td></tr>
+            <tr>
+                <td>{{ g.display_name }}</td>
+                <td>{{ g.urn or "" }}</td>
+                <td>{{ directory.member_names(g) | join(", ") }}</td>
+                <td>
+                    {% if g.group_path %}
+                    <button class="btn btn-primary btn-small"
+                            data-test-url="/demo/groups/{{ g.group_path }}"
+                            data-result="scim-group-result-{{ loop.index }}">
+                        Test
+                    </button>
+                    <div id="scim-group-result-{{ loop.index }}" class="test-result"></div>
+                    {% endif %}
+                </td>
+            </tr>
         {% endfor %}
         </tbody>
     </table>

@@ -73,6 +73,19 @@ class SCIMGroup:
     urn: str | None
     member_ids: list[str] = field(default_factory=list)
 
+    @property
+    def group_path(self) -> str | None:
+        """The ``<organisation>:<collaboration>/<group>`` path of a group, if it is one.
+
+        Returns:
+            The path used by the demo's group check, or None for a collaboration, whose
+            URN has only two segments.
+        """
+        segments = (self.urn or "").split(":")
+        if len(segments) != 3:
+            return None
+        return f"{segments[0]}:{segments[1]}/{segments[2]}"
+
     @classmethod
     def from_resource(cls, resource: dict[str, Any]) -> "SCIMGroup":
         """Build a group from a SCIM Group resource."""
