@@ -3,7 +3,7 @@
 import logging
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
 from sram_fastapi.auth import AuthorizationError, get_optional_user
@@ -97,10 +97,14 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
     templates = create_templates()
 
     @app.exception_handler(AuthorizationError)
-    async def authorization_error_handler(
-        request: Request, exc: AuthorizationError
-    ) -> HTMLResponse:
-        """Handle authorization errors with a user-friendly page."""
+    async def authorization_error_handler(request: Request, exc: AuthorizationError) -> Response:
+        """Report a denial as a page to browsers and as JSON to fetch calls.
+
+        The demo's test buttons call JSON endpoints with fetch and parse the answer, so
+        an HTML page there would surface as a parse error instead of the denial.
+        """
+        if "text/html" not in request.headers.get("accept", ""):
+            return JSONResponse(status_code=403, content={"detail": str(exc)})
         return templates.TemplateResponse(
             request=request,
             name="forbidden.html",
