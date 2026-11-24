@@ -195,3 +195,51 @@ class TestDemoPages:
         )
         assert response.status_code == 500
         assert "not configured" in response.json()["detail"]
+
+
+class TestSRAMApplicationTokenDependency:
+    """The library validates SRAM application tokens for any application."""
+
+    def app(self, result: dict):
+        """A bare FastAPI app with one route behind the dependency."""
+        from fastapi import Depends, FastAPI
+
+        from sram_fastapi.auth import SRAMTokenCheck, require_sram_application_token
+        from sram_fastapi.config import get_settings
+
+        app = FastAPI()
+        settings = Settings(
+            _env_file=None,
+            sram_oidc_client_id="a",
+            sram_oidc_client_secret="b",
+            sram_introspection_token="service-token",
+        )
+        app.dependency_overrides[get_settings] = lambda: settings
+
+        class FakeOIDCClient:
+            async def introspect_sram_token(self, token: str) -> dict:
+                return result
+
+        app.dependency_overrides[get_oidc_client] = lambda: FakeOIDCClient()
+
+        @app.get("/data")
+        async def data(check: SRAMTokenCheck = Depends(require_sram_application_token)):
+            return {"name": check.introspection["user"]["name"], "ms": check.elapsed_ms}
+
+        return TestClient(app)
+
+    def test_active_token_passes(self):
+        """An active token yields the introspection answer."""
+        response = self.app(INTROSPECTION_RESULT).get(
+            "/data", headers={"Authorization": "Bearer t"}
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == "Jane Doe"
+
+    def test_inactive_token_is_refused_with_status(self):
+        """An inactive token gives 401 naming SRAM's status."""
+        response = self.app({"active": False, "status": "token-expired"}).get(
+            "/data", headers={"Authorization": "Bearer t"}
+        )
+        assert response.status_code == 401
+        assert "token-expired" in response.json()["detail"]

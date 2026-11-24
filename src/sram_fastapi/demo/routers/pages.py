@@ -10,7 +10,7 @@ import time
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -18,11 +18,13 @@ from sram_fastapi import __version__
 from sram_fastapi.auth import (
     IntrospectionTokenError,
     OIDCClient,
+    SRAMTokenCheck,
     User,
     get_oidc_client,
     get_optional_user,
     get_token_user,
     grants_feature,
+    require_sram_application_token,
 )
 from sram_fastapi.collaborations import (
     ServiceGroupIndex,
@@ -175,57 +177,17 @@ def create_pages_router() -> APIRouter:
 
     @router.get("/api/hello", response_model=HelloResponse)
     async def hello(
-        request: Request,
-        oidc_client: Annotated[OIDCClient, Depends(get_oidc_client)],
-        settings: Annotated[Settings, Depends(get_settings)],
+        check: Annotated[SRAMTokenCheck, Depends(require_sram_application_token)],
     ) -> HelloResponse:
-        """Protected hello endpoint using SRAM application tokens.
-
-        Requires a valid SRAM application token in the Authorization header.
-        """
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            raise HTTPException(
-                status_code=401,
-                detail="Missing or invalid Authorization header",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        token = auth_header.removeprefix("Bearer ").strip()
-
-        if not settings.sram_introspection_token:
-            raise HTTPException(
-                status_code=500,
-                detail="SRAM introspection not configured",
-            )
-
-        start_time = time.perf_counter()
-        try:
-            result = await oidc_client.introspect_sram_token(token)
-        except IntrospectionTokenError:
-            raise HTTPException(
-                status_code=503,
-                detail="Service configuration error. Please contact the administrator.",
-            )
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Token introspection failed: {e}")
-
-        elapsed_ms = (time.perf_counter() - start_time) * 1000
-
-        if not result.get("active"):
-            raise HTTPException(
-                status_code=401,
-                detail=f"Invalid token: {result.get('status', 'unknown')}",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
+        """Protected hello endpoint using SRAM application tokens."""
+        result = check.introspection
         user_info = result.get("user", {})
         entitlements = user_info.get("eduperson_entitlement")
         return HelloResponse(
             message="Hello World!",
             user=user_info.get("name") or result.get("sub", "unknown"),
             email=user_info.get("email"),
-            validation_time_ms=round(elapsed_ms, 1),
+            validation_time_ms=round(check.elapsed_ms, 1),
             collaborations=sorted(collaboration_urns(entitlements)),
             groups=sorted(f"{co}/{group}" for co, group in groups_of(entitlements)),
             introspection=result,
