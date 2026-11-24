@@ -53,6 +53,8 @@ class Settings(BaseSettings):
 
     # SRAM SCIM pull token, issued on the service's Details & settings tab
     sram_scim_token: str | None = None
+    # Token SRAM presents on SCIM push requests; push endpoints are off when unset
+    sram_scim_push_token: str | None = None
     collaboration_manager_entitlement: str | None = None
     # Deleting a collaboration destroys its memberships and cannot be undone,
     # so it stays off unless a deployment asks for it

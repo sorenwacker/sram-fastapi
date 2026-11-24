@@ -23,7 +23,8 @@ collaboration_manager_entitlement: ""
 sram_feature_groups: "sramdemogroup=tudelft:sramdemo/sramdemogroup, group1=tudelft:sramdemo/group1"
 
 # Gunicorn settings
-gunicorn_workers: 4
+# One worker: the SCIM push store is held in process memory
+gunicorn_workers: 1
 gunicorn_port: 8080
 
 # Session settings

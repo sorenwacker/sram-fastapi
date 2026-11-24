@@ -38,4 +38,36 @@
     </table>
 </div>
 {% endif %}
+
+<div class="card">
+    <h1>Received via push</h1>
+    {% if not push_enabled %}
+    <p>SCIM push is off. Set <code>SRAM_SCIM_PUSH_TOKEN</code> and enable <strong>SCIM push to application</strong> in SRAM with base URL <code>{{ request.base_url }}scim/v2</code>.</p>
+    {% else %}
+    <p>Users and groups SRAM has pushed since this process started.</p>
+    {% endif %}
+</div>
+{% set directory = pushed %}
+<div class="card">
+    <h2>Pushed users ({{ directory.users | length }})</h2>
+    <table>
+        <thead><tr><th>User name</th><th>Name</th><th>Email</th></tr></thead>
+        <tbody>
+        {% for u in directory.users %}
+            <tr><td>{{ u.user_name }}</td><td>{{ u.display_name or "" }}</td><td>{{ u.email or "" }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="card">
+    <h2>Pushed groups ({{ directory.groups | length }})</h2>
+    <table>
+        <thead><tr><th>Name</th><th>URN</th><th>Members</th></tr></thead>
+        <tbody>
+        {% for g in directory.groups %}
+            <tr><td>{{ g.display_name }}</td><td>{{ g.urn or "" }}</td><td>{{ directory.member_names(g) | join(", ") }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}
