@@ -2,18 +2,15 @@
 
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request
-from fastapi.responses import RedirectResponse
-from starlette.middleware.sessions import SessionMiddleware
+from fastapi import Depends, FastAPI
 
 from sram_fastapi.auth import (
-    OIDCClient,
     User,
     get_current_user,
-    get_oidc_client,
     get_optional_user,
     get_token_user,
 )
+from sram_fastapi.auth_routes import add_session_middleware, create_auth_router
 from sram_fastapi.config import Settings, get_settings
 
 
@@ -28,19 +25,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
     )
 
-    # Add session middleware for OAuth state
-    app.add_middleware(
-        SessionMiddleware,
-        secret_key=settings.secret_key,
-        session_cookie=settings.session_cookie_name,
-        max_age=settings.session_max_age,
-        https_only=settings.session_https_only,
-        same_site="lax",
-    )
+    add_session_middleware(app, settings)
 
     # Override settings dependency for testing
     app.dependency_overrides[get_settings] = lambda: settings
 
+    app.include_router(create_auth_router())
     register_routes(app)
 
     return app
@@ -56,7 +46,7 @@ def register_routes(app: FastAPI) -> None:
         """Public endpoint showing authentication status."""
         if user:
             return {
-                "message": f"Hello, {user.name or user.email or user.sub}!",
+                "message": f"Hello, {user.name or user.email or user.identifier}!",
                 "authenticated": True,
             }
         return {
@@ -65,42 +55,13 @@ def register_routes(app: FastAPI) -> None:
             "login_url": "/auth/login",
         }
 
-    @app.get("/auth/login")
-    async def login(
-        request: Request,
-        oidc_client: Annotated[OIDCClient, Depends(get_oidc_client)],
-        settings: Annotated[Settings, Depends(get_settings)],
-    ) -> RedirectResponse:
-        """Initiate OIDC login flow."""
-        redirect_uri = f"{settings.base_url}/auth/callback"
-        return await oidc_client.authorize_redirect(request, redirect_uri)
-
-    @app.get("/auth/callback")
-    async def callback(
-        request: Request,
-        oidc_client: Annotated[OIDCClient, Depends(get_oidc_client)],
-    ) -> RedirectResponse:
-        """Handle OIDC callback."""
-        _, user = await oidc_client.handle_callback(request)
-
-        # Only the claims go in the session cookie; EngineBlock access tokens alone
-        # exceed the 4 KB browsers accept for a cookie
-        request.session["user"] = user.raw_claims
-
-        return RedirectResponse(url="/")
-
-    @app.get("/auth/logout")
-    async def logout(request: Request) -> RedirectResponse:
-        """Logout and clear session."""
-        request.session.clear()
-        return RedirectResponse(url="/")
-
     @app.get("/auth/me")
     async def me(
         user: Annotated[User, Depends(get_current_user)],
     ) -> dict:
         """Get current user information (requires authentication)."""
         return {
+            "identifier": user.identifier,
             "sub": user.sub,
             "email": user.email,
             "name": user.name,
@@ -115,7 +76,7 @@ def register_routes(app: FastAPI) -> None:
         """Protected API endpoint (requires Bearer token)."""
         return {
             "message": "You have access to the protected API",
-            "user": user.sub,
+            "user": user.identifier,
         }
 
     @app.get("/health")

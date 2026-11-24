@@ -7,6 +7,7 @@ This page documents the Python modules and how to use them in your FastAPI appli
 | Module | Purpose |
 |--------|---------|
 | `sram_fastapi.auth` | Authentication and authorization |
+| `sram_fastapi.auth_routes` | Session middleware and the login, callback and logout routes |
 | `sram_fastapi.config` | Configuration management |
 
 ## Authentication Module
@@ -157,6 +158,29 @@ async def login(
     redirect_uri = f"{settings.base_url}/auth/callback"
     return await oidc_client.authorize_redirect(request, redirect_uri)
 ```
+
+## Login Routes Module
+
+`sram_fastapi.auth_routes` provides the browser login flow, so an application does not write its own callback.
+
+```python
+from fastapi import FastAPI
+from sram_fastapi.auth_routes import add_session_middleware, create_auth_router
+
+app = FastAPI()
+add_session_middleware(app, settings)
+app.include_router(create_auth_router())
+```
+
+| Route | Effect |
+|-------|--------|
+| `GET /auth/login` | Redirects to SRAM with `{BASE_URL}/auth/callback` as redirect URI |
+| `GET /auth/callback` | Exchanges the code, stores the user's claims in the session, redirects to `/`; answers 500 with a generic message when the exchange fails and logs the cause |
+| `GET /auth/logout` | Clears the session and redirects to `/` |
+
+The session stores only the claims. The access token is not stored, because EngineBlock access tokens alone exceed the 4 KB browsers accept for a cookie; a warning is logged with field sizes, never values, when the claims approach that limit.
+
+Both the demo application and the API example in `sram_fastapi.main` use this module.
 
 ## Authorization Module
 

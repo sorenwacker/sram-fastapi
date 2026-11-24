@@ -1,11 +1,12 @@
-"""Authentication routes for the demo application."""
+"""Session middleware and the browser login routes shared by every application."""
 
 import json
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from sram_fastapi.auth import OIDCClient, get_oidc_client
 from sram_fastapi.config import Settings, get_settings
@@ -43,8 +44,29 @@ def warn_if_session_too_large(session: dict[str, Any]) -> None:
     )
 
 
+def add_session_middleware(app: FastAPI, settings: Settings) -> None:
+    """Add the signed-cookie session the login routes store the user in.
+
+    Args:
+        app: The application to configure.
+        settings: Settings providing the key and cookie parameters.
+    """
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.secret_key,
+        session_cookie=settings.session_cookie_name,
+        max_age=settings.session_max_age,
+        https_only=settings.session_https_only,
+        same_site="lax",
+    )
+
+
 def create_auth_router() -> APIRouter:
-    """Create authentication router."""
+    """Create the login, callback and logout routes under /auth.
+
+    Returns:
+        APIRouter for the browser login flow.
+    """
     router = APIRouter(prefix="/auth", tags=["auth"])
 
     @router.get("/login")

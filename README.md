@@ -52,7 +52,8 @@ src/sram_fastapi/
     __init__.py
     config.py          # Settings management with validation
     auth.py            # OIDC client and authentication dependencies
-    main.py            # API-only FastAPI application
+    auth_routes.py     # Session middleware and login/callback/logout routes
+    main.py            # API-only example application
     collaborations.py  # SRAM organisation API client
     demo/
         app.py         # Demo application with HTML templates
@@ -138,7 +139,7 @@ API endpoints:
 | Endpoint | Description |
 |----------|-------------|
 | `GET /` | Status endpoint |
-| `GET /auth/me` | Current user info (requires session) |
+| `GET /auth/me` | Current user info, including `identifier` (`voperson_id`) (requires session) |
 | `GET /api/protected` | Protected endpoint (requires Bearer token) |
 | `GET /health` | Health check |
 

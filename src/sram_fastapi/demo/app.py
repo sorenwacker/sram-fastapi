@@ -4,9 +4,9 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
-from starlette.middleware.sessions import SessionMiddleware
 
 from sram_fastapi.auth import AuthorizationError, get_optional_user
+from sram_fastapi.auth_routes import add_session_middleware, create_auth_router
 from sram_fastapi.collaborations import (
     CollaborationConflictError,
     CollaborationNotFoundError,
@@ -16,7 +16,6 @@ from sram_fastapi.collaborations import (
 )
 from sram_fastapi.config import Settings, get_settings
 from sram_fastapi.demo.routers import (
-    create_auth_router,
     create_authorization_router,
     create_collaborations_router,
     create_pages_router,
@@ -82,14 +81,7 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
     )
 
-    app.add_middleware(
-        SessionMiddleware,
-        secret_key=settings.secret_key,
-        session_cookie=settings.session_cookie_name,
-        max_age=settings.session_max_age,
-        https_only=settings.session_https_only,
-        same_site="lax",
-    )
+    add_session_middleware(app, settings)
 
     app.dependency_overrides[get_settings] = lambda: settings
     app.state.settings = settings
