@@ -373,7 +373,6 @@ class Settings(BaseSettings):
 
     # Server
     base_url: str = "http://localhost:8124"
-    allowed_redirect_urls: list[str] = ["http://localhost:8124"]
 ```
 
 ### get_settings

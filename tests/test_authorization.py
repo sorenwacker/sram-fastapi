@@ -416,3 +416,39 @@ def test_test_buttons_never_put_server_text_into_html():
     script = base.read_text().split("<script>", 1)[1]
     assignments = re.findall(r"innerHTML\s*=([^;]*);", script)
     assert [a for a in assignments if "data." in a or "e.message" in a] == []
+
+
+class TestForbiddenPage:
+    """The access denied page gives guidance that matches the failed check."""
+
+    def render(self, check_type: str) -> str:
+        """Render forbidden.html for a denial of the given type."""
+        from sram_fastapi.demo.templating import create_templates
+
+        template = create_templates().env.get_template("forbidden.html")
+        return template.render(
+            request=None,
+            user=None,
+            required=["x"],
+            actual=[],
+            check_type=check_type,
+            require_all=False,
+            nav_is_manager=lambda request, user: False,
+        )
+
+    def test_group_denial_explains_group_membership(self):
+        """A failed group check talks about groups, not institutional affiliation."""
+        html = self.render("group")
+        assert "group" in html.split("How to Get Access", 1)[1].lower()
+        assert "identity management team" not in html
+
+    def test_no_link_to_missing_route(self):
+        """The page links only to routes that exist."""
+        assert "/demo/authorization" not in self.render("entitlement")
+
+
+def test_unused_redirect_setting_is_gone():
+    """allowed_redirect_urls was never enforced, so it must not suggest protection."""
+    from sram_fastapi.config import Settings
+
+    assert "allowed_redirect_urls" not in Settings.model_fields

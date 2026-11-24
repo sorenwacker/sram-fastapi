@@ -40,16 +40,16 @@
 
 <div class="card">
     <h2>How to Get Access</h2>
-    {% if check_type == 'entitlement' %}
+    {% if check_type in ('entitlement', 'group') %}
     <p>
-        Entitlements are granted through SRAM collaboration membership. To gain access:
+        Entitlements and groups are granted through SRAM collaboration and group membership. To gain access:
     </p>
     <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
         <li style="margin-bottom: 0.5rem;">Contact the collaboration administrator</li>
-        <li style="margin-bottom: 0.5rem;">Request to join the collaboration that grants the required entitlement</li>
+        <li style="margin-bottom: 0.5rem;">Request to join the collaboration or group that grants access</li>
         <li style="margin-bottom: 0.5rem;">Wait for approval and re-login to refresh your attributes</li>
     </ol>
-    {% else %}
+    {% elif check_type == 'affiliation' %}
     <p>
         Affiliations are provided by your home institution. To gain access:
     </p>
@@ -58,12 +58,13 @@
         <li style="margin-bottom: 0.5rem;">Verify that your institutional profile has the correct role assigned</li>
         <li style="margin-bottom: 0.5rem;">Re-login after your profile has been updated</li>
     </ol>
+    {% else %}
+    <p>This action is disabled in the deployment's configuration. Contact the administrator of this application.</p>
     {% endif %}
 </div>
 
 <div class="card">
     <p>
-        <a href="/demo/authorization" class="btn btn-secondary">Back to Authorization Demo</a>
         <a href="/" class="btn btn-secondary">Home</a>
         <a href="/auth/logout" class="btn btn-danger">Logout</a>
     </p>
