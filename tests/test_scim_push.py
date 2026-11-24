@@ -135,3 +135,12 @@ class TestPage:
         assert "Received via push" in text
         assert "jdoe" in text
         assert "Cumulus group" in text
+
+
+@pytest.mark.parametrize("body", [b"not json", b"[1, 2]"])
+def test_malformed_body_is_a_scim_400(client, body):
+    """A body that is not a JSON object is a client error, not a server error."""
+    headers = {**AUTH, "Content-Type": "application/scim+json"}
+    response = client.post("/scim/v2/Users", content=body, headers=headers)
+    assert response.status_code == 400
+    assert response.json()["scimType"] == "invalidSyntax"
