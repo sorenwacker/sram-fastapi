@@ -403,3 +403,16 @@ class TestGroupTestButtons:
         assert 'data-test-url="/demo/groups/tudelft:sramdemo/group1"' in html
         assert 'data-test-url="/demo/groups/tudelft:sramdemo/"' not in html
         assert html.count('data-test-url="/demo/groups/') == 1
+
+
+def test_test_buttons_never_put_server_text_into_html():
+    """Server messages echo group names, so the button script must insert them as text."""
+    import re
+    from pathlib import Path
+
+    import sram_fastapi
+
+    base = Path(sram_fastapi.__file__).parent / "demo" / "templates" / "base.html"
+    script = base.read_text().split("<script>", 1)[1]
+    assignments = re.findall(r"innerHTML\s*=([^;]*);", script)
+    assert [a for a in assignments if "data." in a or "e.message" in a] == []

@@ -188,24 +188,32 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 
+function showResult(resultDiv, cssClass, label, text) {
+    // Server text goes in as a text node: messages echo group names from SRAM
+    const badge = document.createElement('span');
+    badge.className = cssClass;
+    badge.textContent = label;
+    resultDiv.replaceChildren(badge, document.createTextNode(text ? ' - ' + text : ''));
+}
+
 async function testRoute(url, resultId) {
     const resultDiv = document.getElementById(resultId);
-    resultDiv.innerHTML = '<span class="loading">Testing...</span>';
     resultDiv.className = 'test-result';
+    showResult(resultDiv, 'loading', 'Testing...', '');
 
     try {
         const response = await fetch(url);
         const data = await response.json();
 
         if (response.ok) {
-            resultDiv.innerHTML = '<span class="success">Access granted</span> - ' + data.message;
+            showResult(resultDiv, 'success', 'Access granted', data.message);
             resultDiv.className = 'test-result success-box';
         } else {
-            resultDiv.innerHTML = '<span class="error">Access denied</span> - ' + (data.detail || 'Forbidden');
+            showResult(resultDiv, 'error', 'Access denied', data.detail || 'Forbidden');
             resultDiv.className = 'test-result error-box';
         }
     } catch (e) {
-        resultDiv.innerHTML = '<span class="error">Error</span> - ' + e.message;
+        showResult(resultDiv, 'error', 'Error', e.message);
         resultDiv.className = 'test-result error-box';
     }
 }
