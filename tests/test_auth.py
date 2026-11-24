@@ -174,3 +174,33 @@ class TestSessionSizeWarning:
 
         warn_if_session_too_large({"user": {"sub": "s"}, "access_token": "t"})
         assert caplog.text == ""
+
+
+class TestSessionCookieFits:
+    """EngineBlock access tokens are over 4 KB; the session cookie must stay below that."""
+
+    @pytest.mark.parametrize("app_factory", ["demo", "library"])
+    def test_login_cookie_fits_browser_limit(self, app_factory, test_settings):
+        """A login with an EngineBlock-sized token sets a cookie browsers accept."""
+        from fastapi.testclient import TestClient
+
+        from sram_fastapi.auth import get_oidc_client
+        from sram_fastapi.demo.app import create_demo_app
+        from sram_fastapi.main import create_app
+
+        claims = {
+            "sub": "s",
+            "voperson_id": "abc@sram.surf.nl",
+            "ssh_public_key": ["ssh-rsa " + "A" * 700],
+            "eduperson_entitlement": ["urn:mace:surf.nl:sram:group:org:co"] * 5,
+        }
+
+        class FakeOIDC:
+            async def handle_callback(self, request):
+                return {"access_token": "t" * 4474}, User.from_claims(claims)
+
+        app = create_demo_app(test_settings) if app_factory == "demo" else create_app(test_settings)
+        app.dependency_overrides[get_oidc_client] = lambda: FakeOIDC()
+        response = TestClient(app, follow_redirects=False).get("/auth/callback")
+        cookie = response.headers["set-cookie"]
+        assert len(cookie) < 4096

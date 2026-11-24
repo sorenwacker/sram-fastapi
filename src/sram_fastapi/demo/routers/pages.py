@@ -239,14 +239,11 @@ def create_pages_router() -> APIRouter:
         settings: Annotated[Settings, Depends(get_settings)],
     ):
         """Render the token testing page."""
-        access_token = request.session.get("access_token") if user else None
-
         return templates.TemplateResponse(
             request=request,
             name="test_token.html",
             context={
                 "user": user,
-                "access_token": access_token,
                 "introspection_configured": bool(settings.sram_introspection_token),
                 "introspection_url": settings.sram_introspection_url,
                 "base_url": settings.base_url,
