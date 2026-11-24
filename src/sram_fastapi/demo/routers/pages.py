@@ -7,13 +7,11 @@ for identity, access rights, and API usage.
 
 import json
 import time
-from pathlib import Path
 from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from sram_fastapi import __version__
@@ -35,6 +33,7 @@ from sram_fastapi.collaborations import (
     groups_of,
 )
 from sram_fastapi.config import Settings, get_settings
+from sram_fastapi.demo.templating import create_templates
 
 from .authorization import DEMO_REQUIRED_AFFILIATION, DEMO_REQUIRED_ENTITLEMENT
 
@@ -87,9 +86,6 @@ class TokenValidationResponse(BaseModel):
     model_config = {"extra": "allow"}
 
 
-TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
-
-
 def create_pages_router() -> APIRouter:
     """Create the pages router for HTML endpoints.
 
@@ -97,7 +93,7 @@ def create_pages_router() -> APIRouter:
         APIRouter with routes for the home page, legal pages, and API endpoints.
     """
     router = APIRouter(tags=["pages"])
-    templates = Jinja2Templates(directory=TEMPLATES_DIR)
+    templates = create_templates()
 
     @router.get("/", response_class=HTMLResponse)
     async def home(
