@@ -44,7 +44,7 @@ def demo_settings() -> Settings:
     return Settings(
         app_name="Test SRAM Demo",
         debug=True,
-        secret_key="test-secret-key",
+        secret_key="test-secret-key-at-least-32-characters",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
         base_url="http://testserver",

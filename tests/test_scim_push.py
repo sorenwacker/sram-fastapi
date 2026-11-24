@@ -31,7 +31,7 @@ def make_client(token: str | None = TOKEN, user: User | None = None) -> TestClie
     """An app with SCIM push configured and a fresh store."""
     settings = Settings(
         _env_file=None,
-        secret_key="test-secret-key",
+        secret_key="test-secret-key-at-least-32-characters",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
         sram_scim_push_token=token,

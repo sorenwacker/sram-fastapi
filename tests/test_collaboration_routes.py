@@ -228,7 +228,7 @@ MEMBER = "urn:mace:surf.nl:sram:group:uniharderwijk:cumulusgrp"
 def settings() -> Settings:
     """Settings with collaboration management configured."""
     return Settings(
-        secret_key="test-secret-key",
+        secret_key="test-secret-key-at-least-32-characters",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
         sram_organisation_api_token="test-organisation-token",
@@ -917,7 +917,7 @@ class TestDeletionSwitch:
         """A deployment that says nothing about deletion does not allow it."""
         assert (
             Settings(
-                secret_key="k",
+                secret_key="test-secret-key-at-least-32-characters",
                 sram_oidc_client_id="id",
                 sram_oidc_client_secret="secret",
             ).collaboration_deletion_enabled

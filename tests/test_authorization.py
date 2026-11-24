@@ -330,7 +330,10 @@ class TestDemoDeniedResponseFormat:
 
         app = create_demo_app(
             Settings(
-                _env_file=None, secret_key="k", sram_oidc_client_id="a", sram_oidc_client_secret="b"
+                _env_file=None,
+                secret_key="test-secret-key-at-least-32-characters",
+                sram_oidc_client_id="a",
+                sram_oidc_client_secret="b",
             )
         )
         app.dependency_overrides[get_current_user] = lambda: User.from_claims(
@@ -366,7 +369,7 @@ class TestGroupTestButtons:
         app = create_demo_app(
             Settings(
                 _env_file=None,
-                secret_key="k",
+                secret_key="test-secret-key-at-least-32-characters",
                 sram_oidc_client_id="a",
                 sram_oidc_client_secret="b",
             )

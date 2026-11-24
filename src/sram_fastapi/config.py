@@ -4,8 +4,16 @@ import sys
 from dataclasses import dataclass
 from functools import lru_cache
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PLACEHOLDER_SECRET_KEYS = frozenset(
+    {
+        "change-me-in-production",
+        "generate-a-secure-random-key",
+        "generate-a-secure-random-key-here",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -35,7 +43,8 @@ class Settings(BaseSettings):
     # Application settings
     app_name: str = "SRAM FastAPI"
     debug: bool = False
-    secret_key: str = "change-me-in-production"
+    # Signs the session cookie; a guessable key lets anyone forge a login
+    secret_key: str = Field(min_length=32)
 
     # SRAM OIDC settings
     sram_oidc_client_id: str
@@ -72,6 +81,14 @@ class Settings(BaseSettings):
     # Server settings
     base_url: str = "http://localhost:8124"
     allowed_redirect_urls: list[str] = ["http://localhost:8124"]
+
+    @field_validator("secret_key")
+    @classmethod
+    def _refuse_placeholder_key(cls, value: str) -> str:
+        """Refuse the placeholder values shipped in the example configuration."""
+        if value in PLACEHOLDER_SECRET_KEYS:
+            raise ValueError("SECRET_KEY is a placeholder; generate a random key")
+        return value
 
     @property
     def feature_groups(self) -> dict[str, "FeatureGroup"]:

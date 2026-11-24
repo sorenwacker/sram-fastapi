@@ -62,7 +62,7 @@ def settings(token: str | None = "scim-token") -> Settings:
     """Settings with SCIM pull configured."""
     return Settings(
         _env_file=None,
-        secret_key="test-secret-key",
+        secret_key="test-secret-key-at-least-32-characters",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
         sram_scim_token=token,
