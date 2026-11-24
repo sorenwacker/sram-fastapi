@@ -162,7 +162,7 @@ curl -H "Authorization: Bearer <access_token>" https://your-app/api/data
 
 #### get_oidc_client
 
-Returns the `OIDCClient` instance. Use in auth routes.
+Returns the `OIDCClient` of the current application. The client, the SCIM push store (`get_scim_store`) and the service group index (`get_service_group_index`) are kept on `app.state` and created on first use, one per application; there are no module-level instances, so two applications in one process, or a test with other settings, do not share them. Tests replace them through `app.dependency_overrides`.
 
 ```python
 from fastapi import Depends, Request

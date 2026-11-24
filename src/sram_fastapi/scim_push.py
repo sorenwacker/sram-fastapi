@@ -59,12 +59,20 @@ class SCIMStore:
         return self._resources[kind].pop(resource_id, None) is not None
 
 
-_store = SCIMStore()
+def get_scim_store(request: Request) -> SCIMStore:
+    """Return the application's SCIM push store, creating it on first use.
 
+    Args:
+        request: The current request, whose application holds the store.
 
-def get_scim_store() -> SCIMStore:
-    """Return the process-wide SCIM push store as a FastAPI dependency."""
-    return _store
+    Returns:
+        The store shared by every request to this application.
+    """
+    store = getattr(request.app.state, "scim_push_store", None)
+    if store is None:
+        store = SCIMStore()
+        request.app.state.scim_push_store = store
+    return store
 
 
 Store = Annotated[SCIMStore, Depends(get_scim_store)]

@@ -306,3 +306,79 @@ class TestSameOriginGuard:
     def test_request_without_origin_passes(self, test_settings):
         """Server-to-server calls, such as SCIM pushes, carry no Origin and pass."""
         assert self.client(test_settings).post("/change").status_code == 200
+
+
+class TestCollaboratorsPerApplication:
+    """Each application gets its own client, store and index, built from its own settings."""
+
+    def collaborators(self, settings):
+        """Return the OIDC client, SCIM store and group index one app hands out."""
+        from fastapi import Depends, FastAPI
+        from fastapi.testclient import TestClient
+
+        from sram_fastapi.auth import get_oidc_client
+        from sram_fastapi.collaborations import get_service_group_index
+        from sram_fastapi.config import get_settings
+        from sram_fastapi.scim_push import get_scim_store
+
+        app = FastAPI()
+        app.dependency_overrides[get_settings] = lambda: settings
+        seen = {}
+
+        @app.get("/x")
+        async def x(
+            oidc=Depends(get_oidc_client),
+            store=Depends(get_scim_store),
+            index=Depends(get_service_group_index),
+        ):
+            seen.update(oidc=oidc, store=store, index=index)
+            return {}
+
+        client = TestClient(app)
+        client.get("/x")
+        first = dict(seen)
+        client.get("/x")
+        assert seen == first, "one application must reuse its collaborators"
+        return first
+
+    def test_apps_do_not_share(self, test_settings):
+        """Two applications with different settings never share collaborators."""
+        other = test_settings.model_copy(update={"sram_oidc_client_id": "other-client"})
+        a, b = self.collaborators(test_settings), self.collaborators(other)
+        assert a["oidc"].settings is test_settings
+        assert b["oidc"].settings is other
+        assert a["store"] is not b["store"]
+        assert a["index"] is not b["index"]
+
+
+def test_no_module_imports_from_the_collaborations_router():
+    """Shared checks live in the library, not in a router other modules reach into."""
+    from pathlib import Path
+
+    import sram_fastapi
+
+    root = Path(sram_fastapi.__file__).parent
+    offenders = [
+        str(path.relative_to(root))
+        for path in root.rglob("*.py")
+        if path.name != "__init__.py"
+        and "from sram_fastapi.demo.routers.collaborations import" in path.read_text()
+    ]
+    assert offenders == []
+
+
+def test_manager_check_is_in_the_library():
+    """Holding the configured entitlement makes a user a collaboration manager."""
+    from sram_fastapi.auth import is_collaboration_manager
+    from sram_fastapi.config import Settings
+
+    settings = Settings(
+        _env_file=None,
+        sram_oidc_client_id="a",
+        sram_oidc_client_secret="b",
+        collaboration_manager_entitlement="urn:x:managers",
+    )
+    manager = User.from_claims({"sub": "s", "eduperson_entitlement": ["urn:x:managers"]})
+    member = User.from_claims({"sub": "s", "eduperson_entitlement": ["urn:x:other"]})
+    assert is_collaboration_manager(manager, settings)
+    assert not is_collaboration_manager(member, settings)

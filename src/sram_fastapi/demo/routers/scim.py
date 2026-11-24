@@ -9,9 +9,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from sram_fastapi.auth import User, get_optional_user
+from sram_fastapi.auth import User, get_optional_user, require_collaboration_manager
 from sram_fastapi.config import Settings, get_settings
-from sram_fastapi.demo.routers.collaborations import require_manager
 from sram_fastapi.demo.templating import create_templates
 from sram_fastapi.scim import SCIMDirectory, SCIMGroup, SCIMUser, SRAMSCIMClient, get_scim_client
 from sram_fastapi.scim_push import SCIMStore, get_scim_store
@@ -37,7 +36,7 @@ def create_scim_router() -> APIRouter:
         """Show the users and groups SRAM provisions through SCIM pull."""
         if user is None:
             return RedirectResponse("/auth/login", status_code=303)
-        require_manager(user, settings)
+        require_collaboration_manager(user, settings)
 
         directory = await client.get_directory() if client.configured else None
         return templates.TemplateResponse(
