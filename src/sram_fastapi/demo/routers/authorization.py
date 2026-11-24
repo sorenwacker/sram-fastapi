@@ -11,7 +11,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from sram_fastapi.auth import User, require_affiliation, require_entitlement, require_group
+from sram_fastapi.auth import (
+    User,
+    get_current_user,
+    require_affiliation,
+    require_entitlement,
+    require_group,
+)
+from sram_fastapi.collaborations import ENTITLEMENT_PREFIX
 from sram_fastapi.config import Settings
 
 # Demo authorization requirements
@@ -99,6 +106,29 @@ def create_authorization_router(settings: Settings) -> APIRouter:
             message="Affiliation check passed",
             user=user.preferred_username or user.email or user.sub,
             required=DEMO_REQUIRED_AFFILIATION,
+        )
+
+    @router.get("/groups/{collaboration}/{group}", response_model=AuthorizationCheckResponse)
+    async def group_protected(
+        collaboration: str,
+        group: str,
+        user: Annotated[User, Depends(get_current_user)],
+    ) -> AuthorizationCheckResponse:
+        """Endpoint reachable by members of the group named in the path.
+
+        Args:
+            collaboration: The collaboration's global URN, ``<organisation>:<collaboration>``.
+            group: The group's short name.
+
+        Returns:
+            JSON with access confirmation, or 403 through AuthorizationError.
+        """
+        entitlement = f"{ENTITLEMENT_PREFIX}{collaboration}:{group}"
+        require_entitlement(entitlement)(user)
+        return AuthorizationCheckResponse(
+            message=f"Group check passed for {collaboration}/{group}",
+            user=user.preferred_username or user.email or user.sub,
+            required=entitlement,
         )
 
     for feature, group in settings.feature_groups.items():

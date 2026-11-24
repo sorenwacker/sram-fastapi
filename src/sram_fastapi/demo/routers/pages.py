@@ -111,7 +111,9 @@ def create_pages_router() -> APIRouter:
         """
         raw_claims_json = ""
         features = []
+        my_groups: list[tuple[str, str]] = []
         if user:
+            my_groups = sorted(groups_of(user.eduperson_entitlement))
             raw_claims_json = json.dumps(user.raw_claims, indent=2, default=str)
             features = [
                 {
@@ -131,6 +133,7 @@ def create_pages_router() -> APIRouter:
                 "base_url": settings.base_url,
                 "raw_claims_json": raw_claims_json,
                 "features": features,
+                "my_groups": my_groups,
                 "required_entitlement": DEMO_REQUIRED_ENTITLEMENT,
                 "required_affiliation": DEMO_REQUIRED_AFFILIATION,
                 "version": __version__,

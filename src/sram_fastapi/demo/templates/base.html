@@ -177,5 +177,38 @@
         </div>
         {% endif %}
     </footer>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    // The URL is read from a data attribute rather than an inline handler, so a
+    // configured feature name never lands in a JavaScript string literal.
+    document.querySelectorAll("button[data-test-url]").forEach(function (button) {
+        button.addEventListener("click", function () {
+            testRoute(button.dataset.testUrl, button.dataset.result);
+        });
+    });
+});
+
+async function testRoute(url, resultId) {
+    const resultDiv = document.getElementById(resultId);
+    resultDiv.innerHTML = '<span class="loading">Testing...</span>';
+    resultDiv.className = 'test-result';
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (response.ok) {
+            resultDiv.innerHTML = '<span class="success">Access granted</span> - ' + data.message;
+            resultDiv.className = 'test-result success-box';
+        } else {
+            resultDiv.innerHTML = '<span class="error">Access denied</span> - ' + (data.detail || 'Forbidden');
+            resultDiv.className = 'test-result error-box';
+        }
+    } catch (e) {
+        resultDiv.innerHTML = '<span class="error">Error</span> - ' + e.message;
+        resultDiv.className = 'test-result error-box';
+    }
+}
+</script>
 </body>
 </html>

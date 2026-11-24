@@ -45,7 +45,15 @@ GROUPS = {
                 "urn": "uniharderwijk:cumulusgrp",
                 "description": "Cloud research",
             },
-        }
+        },
+        {
+            "id": "g-2",
+            "displayName": "editors",
+            "members": [{"value": "u-1"}],
+            "urn:mace:surf.nl:sram:scim:extension:Group": {
+                "urn": "uniharderwijk:cumulusgrp:editors"
+            },
+        },
     ],
 }
 
@@ -195,3 +203,13 @@ class TestNavigationLink:
     def test_member_does_not_see_link(self):
         """Other users do not get a link to a page they cannot open."""
         assert 'href="/scim"' not in self.home(["urn:mace:surf.nl:sram:group:uniharderwijk:other"])
+
+
+class TestSCIMGroupButtons:
+    """The SCIM page offers an access test for every group SRAM returns."""
+
+    def test_button_per_group(self):
+        """Each group with a URN gets a Test button for its entitlement."""
+        html = page(user(MANAGER)).text
+        assert 'data-test-url="/demo/groups/uniharderwijk:cumulusgrp/editors"' in html
+        assert html.count('data-test-url="/demo/groups/') == 1

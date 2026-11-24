@@ -349,3 +349,54 @@ class TestDemoDeniedResponseFormat:
         response = self.client().get("/demo/entitlement-protected", headers={"Accept": "text/html"})
         assert response.status_code == 403
         assert "text/html" in response.headers["content-type"]
+
+
+class TestGroupTestButtons:
+    """Per-group access checks on the home page and the SCIM page."""
+
+    GROUP = "urn:mace:surf.nl:sram:group:tudelft:sramdemo:group1"
+    COLLABORATION = "urn:mace:surf.nl:sram:group:tudelft:sramdemo"
+
+    def app(self, entitlements):
+        """A demo app with a session user holding the given entitlements."""
+        from sram_fastapi.auth import get_current_user, get_optional_user
+        from sram_fastapi.config import Settings
+        from sram_fastapi.demo.app import create_demo_app
+
+        app = create_demo_app(
+            Settings(
+                _env_file=None,
+                secret_key="k",
+                sram_oidc_client_id="a",
+                sram_oidc_client_secret="b",
+            )
+        )
+        user = User.from_claims({"sub": "s", "eduperson_entitlement": entitlements})
+        app.dependency_overrides[get_current_user] = lambda: user
+        app.dependency_overrides[get_optional_user] = lambda: user
+        return app
+
+    def test_member_passes(self):
+        """A member of the group gets 200."""
+        from fastapi.testclient import TestClient
+
+        client = TestClient(self.app([self.GROUP]))
+        assert client.get("/demo/groups/tudelft:sramdemo/group1").status_code == 200
+
+    def test_non_member_is_refused(self):
+        """Any other group answers 403 as JSON."""
+        from fastapi.testclient import TestClient
+
+        client = TestClient(self.app([self.GROUP]))
+        response = client.get("/demo/groups/tudelft:sramdemo/other", headers={"Accept": "*/*"})
+        assert response.status_code == 403
+        assert "detail" in response.json()
+
+    def test_home_lists_own_groups_only(self):
+        """Groups from the claims get a button; the plain collaboration does not."""
+        from fastapi.testclient import TestClient
+
+        html = TestClient(self.app([self.COLLABORATION, self.GROUP])).get("/").text
+        assert 'data-test-url="/demo/groups/tudelft:sramdemo/group1"' in html
+        assert 'data-test-url="/demo/groups/tudelft:sramdemo/"' not in html
+        assert html.count('data-test-url="/demo/groups/') == 1
