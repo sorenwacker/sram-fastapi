@@ -189,14 +189,14 @@ Verification: The core claims are confirmed in sram-fastapi/src/sram_fastapi/dem
 
 ## Remediation checklist
 
-- [ ] Refuse to start with the placeholder or a short `SECRET_KEY` (high).
-- [ ] Remove `main.py` or reduce it to a minimal example that reuses the library and demo code; identify users by `User.identifier`.
-- [ ] Replace the bearer-token handling in `/api/hello` with the library's `get_token_user`.
-- [ ] Page through SCIM pull results; answer malformed SCIM push bodies with 400 in SCIM error format.
-- [ ] Escape server text in `testRoute` (use `textContent`); add CSRF protection to state-changing forms, `/validate-token` and logout.
-- [ ] Inject the OIDC client, SCIM store and service group index from the app factory; move authorization helpers out of the collaborations router into the library.
-- [ ] Delete `allowed_redirect_urls`, `get_app` if unused, and the `/demo/authorization` link; make forbidden.html guidance match the check type.
-- [ ] Add vulture as a pre-commit hook and ruff as a dev dependency.
+- [x] Refuse to start with the placeholder or a short `SECRET_KEY` (high). #40
+- [x] `main.py` reuses the shared login routes in `sram_fastapi.auth_routes` and identifies users by `User.identifier`; a gate test refuses a second callback route. #42
+- [x] SRAM application token validation is a library dependency, `require_sram_application_token`, used by `/api/hello`. `get_token_user` validates OIDC access tokens, a different mechanism, so it was not the right replacement. #43
+- [x] SCIM pull follows pages (#41); malformed SCIM push bodies get 400 `invalidSyntax` (#46).
+- [x] Test-button results are inserted as text (#44); cross-site `POST`/`PUT`/`PATCH`/`DELETE` requests are refused by `Origin` in addition to `SameSite=Lax` (#45). Logout stays a `GET`: a forged logout only ends the session.
+- [x] The OIDC client, SCIM store and service group index are kept per application on `app.state`; the manager check is `is_collaboration_manager` in the library, and a gate test refuses imports from the collaborations router. #49
+- [x] `allowed_redirect_urls` and the `/demo/authorization` link removed, denial guidance matches the check type (#47). `get_app` is used by the README's start command and stays.
+- [x] vulture runs as a pre-commit hook at confidence 80; ruff and vulture are in the dev dependency group. #48
 
 ## Appendix: unverified low findings
 
