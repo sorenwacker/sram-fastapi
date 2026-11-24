@@ -25,6 +25,7 @@ from sram_fastapi.demo.routers import (
     create_scim_router,
 )
 from sram_fastapi.scim import SCIMTokenError
+from sram_fastapi.scim_push import create_scim_push_router
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,7 @@ def create_demo_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(create_authorization_router(settings))
     app.include_router(create_collaborations_router())
     app.include_router(create_scim_router())
+    app.include_router(create_scim_push_router())
 
     return app
 
