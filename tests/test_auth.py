@@ -163,7 +163,7 @@ class TestSessionSizeWarning:
 
     def test_warns_with_field_sizes_when_session_is_large(self, caplog):
         """A large session is reported with key names and sizes, never values."""
-        from sram_fastapi.demo.routers.auth import warn_if_session_too_large
+        from sram_fastapi.auth_routes import warn_if_session_too_large
 
         secret_value = "x" * 5000
         warn_if_session_too_large({"user": {"sub": "s"}, "access_token": secret_value})
@@ -172,7 +172,7 @@ class TestSessionSizeWarning:
 
     def test_silent_for_small_session(self, caplog):
         """A normal session logs nothing."""
-        from sram_fastapi.demo.routers.auth import warn_if_session_too_large
+        from sram_fastapi.auth_routes import warn_if_session_too_large
 
         warn_if_session_too_large({"user": {"sub": "s"}, "access_token": "t"})
         assert caplog.text == ""
@@ -242,3 +242,31 @@ class TestSecretKey:
     def test_strong_key_is_accepted(self):
         """A random 32-character key loads."""
         assert self.make("x" * 32).secret_key == "x" * 32
+
+
+class TestSharedLoginRoutes:
+    """The login flow lives once, in the library."""
+
+    def test_only_auth_routes_defines_the_callback(self):
+        """No other module declares its own OIDC callback route."""
+        from pathlib import Path
+
+        import sram_fastapi
+
+        root = Path(sram_fastapi.__file__).parent
+        offenders = [
+            str(path.relative_to(root))
+            for path in root.rglob("*.py")
+            if path.name != "auth_routes.py"
+            and ('"/callback"' in path.read_text() or '"/auth/callback"' in path.read_text())
+        ]
+        assert offenders == []
+
+    def test_me_reports_identifier(self, client):
+        """The example app identifies the user by voperson_id."""
+        from sram_fastapi.auth import get_current_user
+
+        client.app.dependency_overrides[get_current_user] = lambda: User.from_claims(
+            {"sub": "surfconext-subject", "voperson_id": "abc@sram.surf.nl"}
+        )
+        assert client.get("/auth/me").json()["identifier"] == "abc@sram.surf.nl"
