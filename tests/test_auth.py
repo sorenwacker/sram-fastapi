@@ -147,3 +147,10 @@ class TestOIDCScopes:
 
         oauth = OIDCClient(test_settings).get_oauth()
         assert oauth.sram.client_kwargs["scope"] == "openid"
+
+    def test_sends_secret_in_body(self, test_settings):
+        """The secret goes in the form body, where it is encoded correctly."""
+        from sram_fastapi.auth import OIDCClient
+
+        oauth = OIDCClient(test_settings).get_oauth()
+        assert oauth.sram.client_kwargs["token_endpoint_auth_method"] == "client_secret_post"

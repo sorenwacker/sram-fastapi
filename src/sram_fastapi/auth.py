@@ -129,7 +129,13 @@ class OIDCClient:
                 server_metadata_url=self.settings.sram_oidc_discovery_url,
                 # EngineBlock releases all entitled claims for "openid" alone and
                 # rejects logins that request unknown scopes
-                client_kwargs={"scope": "openid"},
+                # authlib does not URL-encode the secret for HTTP Basic (RFC 6749
+                # 2.3.1), which breaks secrets with special characters; the form
+                # body is encoded correctly
+                client_kwargs={
+                    "scope": "openid",
+                    "token_endpoint_auth_method": "client_secret_post",
+                },
             )
         return self._oauth
 

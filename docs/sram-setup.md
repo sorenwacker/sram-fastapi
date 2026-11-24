@@ -151,6 +151,8 @@ For the SRAM acceptance environment (`acc.sram.surf.nl`) use `https://connect.te
 
 The application requests only the `openid` scope. SURFconext EngineBlock releases all claims the service is entitled to regardless of scope, and rejects the login when any scope other than `openid`, `profile`, `email` or a permitted `offline_access` is requested.
 
+The application sends its client secret to the token endpoint in the request body (`client_secret_post`). With HTTP Basic authentication, RFC 6749 section 2.3.1 requires the secret to be URL-encoded first; the OIDC library used here does not do that, and SURFconext then rejects secrets that contain characters such as `+` or `/` with `access_denied: Invalid user / secret`.
+
 ### Migrating from the eduTEAMS proxy (deadline 15 January 2027)
 
 SRAM replaces its login proxy, eduTEAMS (`proxy.sram.surf.nl`, on acceptance `proxy.acc.sram.eduteams.org`), with SURFconext EngineBlock. Source: [SRAM Application Migration Guide](https://servicedesk.surf.nl/wiki/spaces/IAM/pages/346947851/SRAM+Application+Migration+Guide+eduTEAMS+-+SURFconext+EngineBlock) (SURF login required). An existing deployment migrates as follows:
