@@ -56,8 +56,10 @@ Required secrets:
 | `vault_secret_key` | Session encryption key |
 | `vault_sram_introspection_token` | Service introspection token, for validating user application tokens |
 | `vault_sram_organisation_api_token` | Organisation API token, for collaboration management |
+| `vault_sram_scim_token` | SCIM pull token, see [SCIM Provisioning](scim-provisioning.md) |
+| `vault_sram_scim_push_token` | Token SRAM presents on SCIM push requests, see [SCIM Provisioning](scim-provisioning.md) |
 
-The last two are optional: without them the application still authenticates users, but token introspection and collaboration management stay disabled.
+The last four are optional: without them the application still authenticates users, but token introspection, collaboration management and SCIM stay disabled.
 
 Generate a secret key:
 
@@ -74,7 +76,7 @@ Edit `ansible/group_vars/sram_demo/vars.yml` for non-secret configuration:
 | `app_name` | Application display name | SRAM Demo |
 | `app_dir` | Installation directory | /app/sram-fastapi |
 | `base_url` | Public URL | https://sram-demo.ewi.tudelft.nl |
-| `gunicorn_workers` | Number of worker processes | 4 |
+| `gunicorn_workers` | Number of worker processes; keep at 1 while SCIM push is used, because pushed data is held in process memory | 1 |
 | `gunicorn_port` | Port to bind | 8080 |
 
 ## Deployment
