@@ -199,6 +199,16 @@ Establishing origin needs data the claim does not carry: the group's `service_gr
 
 Two limits follow from where that data comes from. It needs the organisation API token, so a deployment without one can only use bound features. And it sees one organisation, so a collaboration elsewhere is never verified and has to be named explicitly.
 
+## Testing group access in the demo
+
+The demo home page lists every group the logged-in user is a member of, one row per group, each with a **Test** button. The list is derived from the user's `eduperson_entitlement` claim: each value of the form `urn:mace:surf.nl:sram:group:<organisation>:<collaboration>:<group>` is one group. Collaboration memberships (two segments after the prefix) are not listed.
+
+Each button calls `GET /demo/groups/<organisation>:<collaboration>/<group>`. The route rebuilds the group's entitlement from the path and checks it with `require_entitlement`, so it answers 200 for members and 403 for everyone else, whatever group is named in the path.
+
+The `/scim` page, available to managers, shows the same **Test** button for every group SCIM pull returns, including groups the manager is not a member of. Those answer 403, which shows the difference between a group existing in the collaboration and the user being in it. The group's entitlement is built from the `urn` attribute of the SRAM SCIM group extension.
+
+The claims are read at login. A membership change in SRAM shows in the checks after the user logs in again, while the SCIM list shows it as soon as SRAM reports it.
+
 ## Handling Authorization Errors
 
 When authorization fails, an `AuthorizationError` exception is raised. This exception contains context about what was required vs what the user has.
@@ -234,6 +244,8 @@ async def authorization_error_handler(request: Request, exc: AuthorizationError)
         },
     )
 ```
+
+An application serving both pages and JSON endpoints can choose by the `Accept` header. The demo application renders the page when the request accepts `text/html`, as a browser navigation does, and returns the JSON body otherwise, as for its `fetch` calls.
 
 ### AuthorizationError Attributes
 
