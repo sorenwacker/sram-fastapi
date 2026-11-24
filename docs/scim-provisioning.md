@@ -38,7 +38,7 @@ The token is a service credential. It is held server-side only and is never sent
 | `GET {SRAM_API_BASE_URL}/api/scim/v2/Groups` | All collaborations and groups connected to the service, with their members |
 | `GET {SRAM_API_BASE_URL}/api/scim/v2/Schemas` | Schema definitions; no authentication required |
 
-Responses are SCIM `ListResponse` objects. Besides the core schemas, SRAM adds two extensions:
+Responses are SCIM `ListResponse` objects. The application requests further pages with `startIndex` until it has `totalResults` resources, since a service provider may return fewer resources per response than exist. Besides the core schemas, SRAM adds two extensions:
 
 | Extension | Attributes |
 |-----------|-----------|
