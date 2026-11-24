@@ -213,3 +213,32 @@ class TestSCIMGroupButtons:
         html = page(user(MANAGER)).text
         assert 'data-test-url="/demo/groups/uniharderwijk:cumulusgrp/editors"' in html
         assert html.count('data-test-url="/demo/groups/') == 1
+
+
+class TestPaging:
+    """SRAM may split a ListResponse over several pages."""
+
+    async def test_reads_all_pages(self):
+        """Users on later pages are fetched by startIndex until totalResults is reached."""
+        users = [{"id": f"u-{i}", "userName": f"user{i}"} for i in range(1, 4)]
+        starts: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/Groups"):
+                return httpx.Response(200, json={"totalResults": 0, "Resources": []})
+            start = int(request.url.params.get("startIndex", "1"))
+            starts.append(str(start))
+            page_items = users[start - 1 : start + 1]
+            return httpx.Response(
+                200,
+                json={
+                    "totalResults": len(users),
+                    "startIndex": start,
+                    "itemsPerPage": len(page_items),
+                    "Resources": page_items,
+                },
+            )
+
+        directory = await SRAMSCIMClient(settings(), httpx.MockTransport(handler)).get_directory()
+        assert [u.user_name for u in directory.users] == ["user1", "user2", "user3"]
+        assert starts == ["1", "3"]

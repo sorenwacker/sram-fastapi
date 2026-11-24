@@ -157,7 +157,19 @@ class SRAMSCIMClient:
         )
 
     async def _list(self, client: httpx.AsyncClient, resource_type: str) -> list[dict[str, Any]]:
-        """Fetch the resources of one SCIM endpoint."""
+        """Fetch all resources of one SCIM endpoint, following pages until totalResults."""
+        resources: list[dict[str, Any]] = []
+        while True:
+            page = await self._page(client, resource_type, start_index=len(resources) + 1)
+            batch = page.get("Resources") or []
+            resources.extend(batch)
+            if not batch or len(resources) >= int(page.get("totalResults", len(resources))):
+                return resources
+
+    async def _page(
+        self, client: httpx.AsyncClient, resource_type: str, start_index: int
+    ) -> dict[str, Any]:
+        """Fetch one page of a SCIM ListResponse."""
         path = f"/api/scim/v2/{resource_type}"
         url = f"{self.settings.sram_api_base_url.rstrip('/')}{path}"
         headers = {
@@ -165,7 +177,7 @@ class SRAMSCIMClient:
             "Accept": "application/scim+json, application/json",
         }
         try:
-            response = await client.get(url, headers=headers)
+            response = await client.get(url, headers=headers, params={"startIndex": start_index})
         except httpx.HTTPError as exc:
             raise SRAMAPIError(f"SRAM SCIM request failed: {exc}") from exc
         if response.status_code in (401, 403):
@@ -173,7 +185,10 @@ class SRAMSCIMClient:
             raise SCIMTokenError("SRAM rejected the SCIM pull token.")
         if not response.is_success:
             raise SRAMAPIError(f"SRAM SCIM endpoint returned {response.status_code} for {path}")
-        return response.json().get("Resources") or []
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise SRAMAPIError(f"SRAM SCIM endpoint returned no JSON for {path}") from exc
 
 
 def get_scim_client(settings: Annotated[Settings, Depends(get_settings)]) -> SRAMSCIMClient:
