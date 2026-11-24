@@ -181,8 +181,11 @@ def test_demo_exposes_a_route_per_configured_feature(feature: str):
         sram_oidc_client_secret="test-client-secret",
         sram_feature_groups="editor=tudelft:sramdemo/e, reviewer=tudelft:sramdemo/r",
     )
-    routes = {route.path for route in create_demo_app(settings).routes}
-    assert f"/demo/features/{feature}" in routes
+    from fastapi.testclient import TestClient
+
+    client = TestClient(create_demo_app(settings), follow_redirects=False)
+    assert client.get(f"/demo/features/{feature}").status_code != 404
+    assert client.get("/demo/features/unconfigured").status_code == 404
 
 
 def test_home_page_lists_configured_features():
