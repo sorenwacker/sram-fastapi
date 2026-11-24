@@ -16,6 +16,7 @@ nav:
   - SCIM Provisioning: scim-provisioning.md
   - SRAM Setup: sram-setup.md
   - Deployment: deployment.md
+  - Code Review 261124: REVIEW.md
 
 markdown_extensions:
   - tables

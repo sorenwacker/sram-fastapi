@@ -165,19 +165,15 @@ curl -H "Authorization: Bearer <access_token>" https://your-app/api/data
 Returns the `OIDCClient` of the current application. The client, the SCIM push store (`get_scim_store`) and the service group index (`get_service_group_index`) are kept on `app.state` and created on first use, one per application; there are no module-level instances, so two applications in one process, or a test with other settings, do not share them. Tests replace them through `app.dependency_overrides`.
 
 ```python
-from fastapi import Depends, Request
+from fastapi import Depends
 from sram_fastapi.auth import OIDCClient, get_oidc_client
-from sram_fastapi.config import get_settings
 
-@app.get("/auth/login")
-async def login(
-    request: Request,
-    oidc_client: OIDCClient = Depends(get_oidc_client),
-):
-    settings = get_settings()
-    redirect_uri = f"{settings.base_url}/auth/callback"
-    return await oidc_client.authorize_redirect(request, redirect_uri)
+@app.get("/token-info")
+async def token_info(token: str, oidc_client: OIDCClient = Depends(get_oidc_client)):
+    return await oidc_client.introspect_token(token)
 ```
+
+Login, callback and logout are provided by `sram_fastapi.auth_routes`; an application does not write them itself.
 
 ## Login Routes Module
 
@@ -419,27 +415,16 @@ async def info(settings: Settings = Depends(get_settings)):
 Minimal FastAPI app with SRAM authentication:
 
 ```python
-from fastapi import Depends, FastAPI, Request
-from fastapi.responses import RedirectResponse
-from starlette.middleware.sessions import SessionMiddleware
+from fastapi import Depends, FastAPI
 
-from sram_fastapi.auth import (
-    OIDCClient,
-    User,
-    get_current_user,
-    get_oidc_client,
-    get_optional_user,
-)
+from sram_fastapi.auth import User, get_current_user, get_optional_user
+from sram_fastapi.auth_routes import add_session_middleware, create_auth_router
 from sram_fastapi.config import get_settings
 
-app = FastAPI()
 settings = get_settings()
-
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.secret_key,
-    https_only=settings.session_https_only,
-)
+app = FastAPI()
+add_session_middleware(app, settings)
+app.include_router(create_auth_router())
 
 @app.get("/")
 async def home(user: User | None = Depends(get_optional_user)):
@@ -447,32 +432,10 @@ async def home(user: User | None = Depends(get_optional_user)):
         return {"message": f"Hello, {user.name}"}
     return {"message": "Please log in", "login_url": "/auth/login"}
 
-@app.get("/auth/login")
-async def login(
-    request: Request,
-    oidc_client: OIDCClient = Depends(get_oidc_client),
-):
-    redirect_uri = f"{settings.base_url}/auth/callback"
-    return await oidc_client.authorize_redirect(request, redirect_uri)
-
-@app.get("/auth/callback")
-async def callback(
-    request: Request,
-    oidc_client: OIDCClient = Depends(get_oidc_client),
-):
-    token, user = await oidc_client.handle_callback(request)
-    request.session["user"] = user.raw_claims
-    return RedirectResponse(url="/")
-
-@app.get("/auth/logout")
-async def logout(request: Request):
-    request.session.clear()
-    return RedirectResponse(url="/")
-
 @app.get("/profile")
 async def profile(user: User = Depends(get_current_user)):
     return {
-        "sub": user.sub,
+        "identifier": user.identifier,
         "email": user.email,
         "name": user.name,
         "entitlements": user.eduperson_entitlement,
