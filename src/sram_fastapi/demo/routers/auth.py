@@ -65,7 +65,7 @@ def create_auth_router() -> APIRouter:
     ) -> RedirectResponse:
         """Handle OIDC callback."""
         try:
-            token, user = await oidc_client.handle_callback(request)
+            _, user = await oidc_client.handle_callback(request)
         except Exception as e:
             error_detail = f"OIDC callback failed: {type(e).__name__}: {e}"
             logger.exception("OIDC callback error")
@@ -75,8 +75,9 @@ def create_auth_router() -> APIRouter:
                 status_code=500,
                 detail="Authentication failed. Check server logs for details.",
             ) from e
+        # Only the claims go in the session cookie; EngineBlock access tokens alone
+        # exceed the 4 KB browsers accept for a cookie
         request.session["user"] = user.raw_claims
-        request.session["access_token"] = token.get("access_token")
         warn_if_session_too_large(dict(request.session))
         return RedirectResponse(url="/")
 

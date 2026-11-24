@@ -57,25 +57,6 @@
     </details>
 </div>
 
-{% if user and access_token %}
-<div class="card">
-    <h2>Your Current Session Token</h2>
-    <p class="section-intro">
-        This is your OIDC access token from the current login session.
-        You can use this for API calls.
-    </p>
-    <div class="token-display">
-        <code id="session-token">{{ access_token }}</code>
-        <button class="btn btn-secondary btn-small" onclick="copyToken(event)">Copy</button>
-    </div>
-    <p class="explanation" style="margin-top: 1rem;">
-        <strong>Note:</strong> This is an OIDC token, not a SRAM application token.
-        For SRAM application tokens, generate one in the
-        <a href="https://sram.surf.nl" target="_blank">SRAM portal</a>.
-    </p>
-</div>
-{% endif %}
-
 <div class="card">
     <h2>Test API Endpoint</h2>
     <p class="section-intro">
@@ -181,15 +162,6 @@ async function testToken(event) {
     }
 
     return false;
-}
-
-function copyToken(event) {
-    const token = document.getElementById('session-token').textContent;
-    navigator.clipboard.writeText(token).then(() => {
-        const btn = event.target;
-        btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = 'Copy', 2000);
-    });
 }
 
 function copyCurl(event) {

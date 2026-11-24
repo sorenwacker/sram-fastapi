@@ -81,11 +81,11 @@ def register_routes(app: FastAPI) -> None:
         oidc_client: Annotated[OIDCClient, Depends(get_oidc_client)],
     ) -> RedirectResponse:
         """Handle OIDC callback."""
-        token, user = await oidc_client.handle_callback(request)
+        _, user = await oidc_client.handle_callback(request)
 
-        # Store user info in session
+        # Only the claims go in the session cookie; EngineBlock access tokens alone
+        # exceed the 4 KB browsers accept for a cookie
         request.session["user"] = user.raw_claims
-        request.session["access_token"] = token.get("access_token")
 
         return RedirectResponse(url="/")
 
