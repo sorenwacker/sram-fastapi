@@ -102,7 +102,7 @@ ORGANISATION_DETAIL = {
 def make_settings(**overrides) -> Settings:
     """Build settings with the organisation API configured."""
     values = {
-        "secret_key": "test-secret-key",
+        "secret_key": "test-secret-key-at-least-32-characters",
         "sram_oidc_client_id": "test-client-id",
         "sram_oidc_client_secret": "test-client-secret",
         "sram_api_base_url": "https://acc.sram.surf.nl",

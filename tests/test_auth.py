@@ -56,6 +56,7 @@ class TestSettings:
         """Settings can be created with required environment variables."""
         monkeypatch.setenv("SRAM_OIDC_CLIENT_ID", "test-client")
         monkeypatch.setenv("SRAM_OIDC_CLIENT_SECRET", "test-secret")
+        monkeypatch.setenv("SECRET_KEY", "test-secret-key-at-least-32-characters")
 
         settings = Settings()
 
@@ -66,6 +67,7 @@ class TestSettings:
         """Settings have sensible defaults."""
         monkeypatch.setenv("SRAM_OIDC_CLIENT_ID", "test-client")
         monkeypatch.setenv("SRAM_OIDC_CLIENT_SECRET", "test-secret")
+        monkeypatch.setenv("SECRET_KEY", "test-secret-key-at-least-32-characters")
         monkeypatch.delenv("SRAM_OIDC_DISCOVERY_URL", raising=False)
 
         settings = Settings(_env_file=None)
@@ -204,3 +206,39 @@ class TestSessionCookieFits:
         response = TestClient(app, follow_redirects=False).get("/auth/callback")
         cookie = response.headers["set-cookie"]
         assert len(cookie) < 4096
+
+
+class TestSecretKey:
+    """The session signing key must be set and not guessable."""
+
+    def make(self, key):
+        """Build settings with the given secret key."""
+        return Settings(
+            _env_file=None,
+            secret_key=key,
+            sram_oidc_client_id="a",
+            sram_oidc_client_secret="b",
+        )
+
+    def test_missing_key_is_refused(self, monkeypatch):
+        """Without SECRET_KEY the settings do not load."""
+        from pydantic import ValidationError
+
+        monkeypatch.delenv("SECRET_KEY", raising=False)
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None, sram_oidc_client_id="a", sram_oidc_client_secret="b")
+
+    @pytest.mark.parametrize(
+        "key",
+        ["change-me-in-production", "generate-a-secure-random-key-here", "short"],
+    )
+    def test_weak_key_is_refused(self, key):
+        """Placeholder values from the examples and short keys are refused."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            self.make(key)
+
+    def test_strong_key_is_accepted(self):
+        """A random 32-character key loads."""
+        assert self.make("x" * 32).secret_key == "x" * 32

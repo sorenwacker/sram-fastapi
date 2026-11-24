@@ -313,7 +313,7 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "SRAM FastAPI"
     debug: bool = False
-    secret_key: str = "change-me-in-production"
+    secret_key: str  # required, at least 32 characters
 
     # SRAM OIDC (required)
     sram_oidc_client_id: str
@@ -363,7 +363,7 @@ async def info(settings: Settings = Depends(get_settings)):
 | `SRAM_INTROSPECTION_URL` | No | `https://sram.surf.nl/api/tokens/introspect` | SRAM token introspection endpoint |
 | `SRAM_SCIM_TOKEN` | No | - | SCIM pull token from the service's Details & settings tab, see [SCIM Provisioning](scim-provisioning.md) |
 | `SRAM_SCIM_PUSH_TOKEN` | No | - | Token SRAM must present on SCIM push requests; push endpoints are off when unset |
-| `SECRET_KEY` | Yes | - | Secret for session encryption |
+| `SECRET_KEY` | Yes | - | Key that signs the session cookie. At least 32 characters; the placeholder values from the example files are refused, and the application does not start without a valid key |
 | `BASE_URL` | No | `http://localhost:8124` | Public URL of your app |
 | `DEBUG` | No | `false` | Enable debug mode |
 | `SESSION_MAX_AGE` | No | `3600` | Session duration in seconds |

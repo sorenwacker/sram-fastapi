@@ -22,7 +22,7 @@ COLLABORATION = "urn:mace:surf.nl:sram:group:tudelft:sramdemo"
 def make_settings(feature_groups: str) -> Settings:
     """Build settings with a feature group mapping."""
     return Settings(
-        secret_key="test-secret-key",
+        secret_key="test-secret-key-at-least-32-characters",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
         sram_feature_groups=feature_groups,
@@ -176,7 +176,7 @@ def test_demo_exposes_a_route_per_configured_feature(feature: str):
     from sram_fastapi.demo.app import create_demo_app
 
     settings = Settings(
-        secret_key="test-secret-key",
+        secret_key="test-secret-key-at-least-32-characters",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
         sram_feature_groups="editor=tudelft:sramdemo/e, reviewer=tudelft:sramdemo/r",
@@ -194,7 +194,7 @@ def test_home_page_lists_configured_features():
     from sram_fastapi.demo.app import create_demo_app
 
     settings = Settings(
-        secret_key="test-secret-key",
+        secret_key="test-secret-key-at-least-32-characters",
         sram_oidc_client_id="test-client-id",
         sram_oidc_client_secret="test-client-secret",
         sram_feature_groups=(
