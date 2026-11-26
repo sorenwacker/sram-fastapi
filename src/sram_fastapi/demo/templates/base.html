@@ -154,6 +154,7 @@
             {% if user %}
             <a href="/collaborations">Collaborations</a>
             {% if nav_is_manager(request, user) %}<a href="/scim">SCIM</a>{% endif %}
+            <a href="/auth/login">Renew login</a>
             <a href="/auth/logout">Logout</a>
             {% else %}
             <a href="/auth/login">Login</a>

@@ -342,6 +342,16 @@ async def tudelft_member(
 | `staff@` | Any org with staff role (e.g., `staff@tudelft.nl`, `staff@uu.nl`) |
 | `@tudelft.nl` | Any role at TU Delft (e.g., `staff@tudelft.nl`, `student@tudelft.nl`) |
 
+## Token Checks Module
+
+### TokenChecker
+
+`TokenChecker(settings).check(name)` tests whether SRAM accepts the `pull`, `introspection` or `organisation` token with one request and returns `valid`, `rejected`, `unreachable` or `not-configured`. `get_token_checker` provides it as a FastAPI dependency. The requests are listed in [Deployment](deployment.md#checking-the-tokens).
+
+### PushLog
+
+`sram_fastapi.scim_push.get_push_log(request)` returns the application's `PushLog`, whose `last_accepted` and `last_refused` hold the times of the last SCIM push request with a valid and with a missing or wrong token.
+
 ## Configuration Module
 
 ### Settings

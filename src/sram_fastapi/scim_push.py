@@ -75,6 +75,31 @@ def get_scim_store(request: Request) -> SCIMStore:
     return store
 
 
+class PushLog:
+    """When the last push request was accepted and the last one refused for its token."""
+
+    def __init__(self) -> None:
+        """Start with no push seen."""
+        self.last_accepted: datetime | None = None
+        self.last_refused: datetime | None = None
+
+
+def get_push_log(request: Request) -> PushLog:
+    """Return the application's push log, creating it on first use.
+
+    Args:
+        request: The current request, whose application holds the log.
+
+    Returns:
+        The log shared by every request to this application.
+    """
+    log = getattr(request.app.state, "scim_push_log", None)
+    if log is None:
+        log = PushLog()
+        request.app.state.scim_push_log = log
+    return log
+
+
 Store = Annotated[SCIMStore, Depends(get_scim_store)]
 Config = Annotated[Settings, Depends(get_settings)]
 
@@ -111,8 +136,11 @@ def _authorised(request: Request, settings: Settings) -> JSONResponse | None:
     if not token:
         return _error(404, "SCIM push is not enabled")
     scheme, _, presented = request.headers.get("Authorization", "").partition(" ")
+    log = get_push_log(request)
     if scheme.lower() != "bearer" or not secrets.compare_digest(presented, token):
+        log.last_refused = datetime.now(UTC)
         return _error(401, "Invalid or missing bearer token")
+    log.last_accepted = datetime.now(UTC)
     return None
 
 
