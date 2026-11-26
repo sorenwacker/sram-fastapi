@@ -1,8 +1,11 @@
-.PHONY: dev test lint format deploy logs status restart
+.PHONY: dev docs test lint format deploy logs status restart
 
 # Development
 dev:
 	uv run uvicorn --factory sram_fastapi.demo.app:get_demo_app --reload --port 8124
+
+docs:
+	uv run zensical serve
 
 # Testing
 test:
