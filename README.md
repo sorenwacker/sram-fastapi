@@ -34,7 +34,7 @@ Full documentation is published on GitHub Pages at [sorenwacker.github.io/sram-f
 - [SRAM Setup](https://sorenwacker.github.io/sram-fastapi/sram-setup/): registering the application as a service in SRAM and connecting it to collaborations
 - [Deployment](https://sorenwacker.github.io/sram-fastapi/deployment/): deploying the application to production
 
-The documentation sources live in `docs/` and are built with mkdocs (`uv run mkdocs serve` for a local preview).
+The documentation sources live in `docs/` and are built with Zensical (`make docs` for a local preview with hot reload).
 
 ## Features
 
