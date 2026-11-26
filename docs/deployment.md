@@ -124,6 +124,31 @@ CodeQL runs the `security-and-quality` query suite. It is not run on every push:
 
 LGTM.com, which previously offered this analysis as an external service, was retired in December 2022; its analysis is now part of GitHub code scanning.
 
+## Service tokens
+
+The application holds four tokens issued in SRAM and one it issues itself. None of them expires on a schedule the application knows, and SRAM offers no protocol to renew them: a token is valid until it is replaced or revoked in SRAM.
+
+### Checking the tokens
+
+The `/scim` page, available to collaboration managers, has a section **Service tokens** with one row per token and a **Check** button. Each button calls `POST /scim/tokens/<name>/check`, which makes one request to SRAM and reports one of `valid`, `rejected`, `unreachable` or `not-configured`.
+
+| Token | Check request | `valid` when | `rejected` when |
+|-------|---------------|--------------|-----------------|
+| `pull` (`SRAM_SCIM_TOKEN`) | `GET {SRAM_API_BASE_URL}/api/scim/v2/Users?count=1` | 200 | 401 or 403 |
+| `introspection` (`SRAM_INTROSPECTION_TOKEN`) | Introspection of a random string | 200 with `active: false` | 401 or 403 |
+| `organisation` (`SRAM_ORGANISATION_API_TOKEN`) | `GET {SRAM_API_BASE_URL}/api/organisations/v1` | 200 | 401 or 403 |
+
+The push token (`SRAM_SCIM_PUSH_TOKEN`) is presented by SRAM to the application, so the application cannot test it. Its row shows instead the time of the last push request accepted and the last one refused with 401, kept in process memory since the last restart.
+
+### Rotating a token
+
+1. Generate the new token in SRAM; for the push token, generate it yourself and enter it in SRAM.
+2. Replace the value with `ansible-vault edit group_vars/sram_demo/vault.yml`.
+3. Run `make deploy`. The application reads the tokens at start.
+4. Press **Check** on the `/scim` page; for the push token, wait for the next push or start a sweep in SRAM.
+
+Between steps 1 and 3 the old token is no longer valid, so SCIM pull, introspection or collaboration management fail, and SRAM's pushes are refused.
+
 ## Ansible Directory Structure
 
 ```

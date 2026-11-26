@@ -207,7 +207,7 @@ Each button calls `GET /demo/groups/<organisation>:<collaboration>/<group>`. The
 
 The `/scim` page, available to managers, shows the same **Test** button for every group SCIM pull returns, including groups the manager is not a member of. Those answer 403, which shows the difference between a group existing in the collaboration and the user being in it. The group's entitlement is built from the `urn` attribute of the SRAM SCIM group extension.
 
-The claims are read at login. A membership change in SRAM shows in the checks after the user logs in again, while the SCIM list shows it as soon as SRAM reports it.
+The claims are read at login. A membership change in SRAM shows in the checks after the user logs in again, while the SCIM list shows it as soon as SRAM reports it. The navigation bar has a **Renew login** button for logged-in users. It runs the login at `/auth/login` without logging out first; while the user still has a session at SURFconext, the identity provider is not asked again and the user returns with fresh claims, which replace the old ones in the session. The application keeps no access or refresh token, so renewing means logging in again.
 
 ## Handling Authorization Errors
 

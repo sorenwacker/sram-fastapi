@@ -8,6 +8,38 @@
     <p>Users and groups of all collaborations connected to this service, read from SRAM's SCIM endpoints when this page loads. This includes members who have never logged in.</p>
 </div>
 
+<div class="card">
+    <h2>Service tokens</h2>
+    <p>Each check sends one request to SRAM with the token. Rotation: create a new token in SRAM, update the vault, run <code>make deploy</code>, then check again.</p>
+    <table>
+        {% for name in checked_tokens %}
+        <tr>
+            <td>{{ name }}</td>
+            <td><button class="btn" data-check-url="/scim/tokens/{{ name }}/check" data-result="token-{{ name }}">Check</button></td>
+            <td><div id="token-{{ name }}"></div></td>
+        </tr>
+        {% endfor %}
+        <tr><td>push</td><td>Last push accepted</td><td>{{ push_log.last_accepted.isoformat(timespec="seconds") if push_log.last_accepted else "never" }}</td></tr>
+        <tr><td>push</td><td>Last push refused</td><td>{{ push_log.last_refused.isoformat(timespec="seconds") if push_log.last_refused else "never" }}</td></tr>
+    </table>
+</div>
+<script>
+document.querySelectorAll('[data-check-url]').forEach(button => {
+    button.addEventListener('click', async () => {
+        const result = document.getElementById(button.dataset.result);
+        showResult(result, 'loading', 'Checking...', '');
+        try {
+            const response = await fetch(button.dataset.checkUrl, {method: 'POST'});
+            const data = await response.json();
+            const status = response.ok ? data.status : 'error ' + response.status;
+            showResult(result, data.status === 'valid' ? 'success' : 'error', status, '');
+        } catch (e) {
+            showResult(result, 'error', 'error', e.message);
+        }
+    });
+});
+</script>
+
 {% if directory is none %}
 <div class="card">
     <h2>Not configured</h2>
